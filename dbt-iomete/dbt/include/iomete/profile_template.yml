@@ -1,0 +1,37 @@
+fixed:
+  type: iomete
+prompts:
+  host:
+    hint: "Data plane host."
+  port:
+    hint: "Data plane port. e.g., 443"
+    default: 443
+  https:
+    hint: "Connection is https. Set to false for http."
+    default: true
+  dataplane:
+    hint: "dataplane name that dbt will connect"
+  domain:
+    hint: "domain name that dbt will connect"
+  lakehouse:
+    hint: "lakehouse name that dbt will connect"
+  catalog:
+    hint: "default catalog that dbt will build objects in"
+  schema:
+    hint: "default schema/database that dbt will build objects in"
+  user:
+    hint: "username"
+  token:
+    hint: "personal access token"
+    hide_input: true
+  connect_timeout:
+    default: 120
+    hint: "connection timeout in seconds"
+    type: "int"
+  connect_retries:
+    default: 0
+    type: "int"
+  threads:
+    hint: "1 or more"
+    type: "int"
+    default: 1
