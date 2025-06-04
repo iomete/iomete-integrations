@@ -1,0 +1,65 @@
+name: PR Check for dbt-iomete
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'dbt-iomete/**'
+
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt', '**/dev-requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r integrations/dbt-iomete/dev-requirements.txt
+          pip install -r integrations/dbt-iomete/requirements.txt
+
+      - name: Run Unit tests
+        run: |
+          tox -e unit -c integrations/dbt-iomete/tox.ini
+
+      - name: Run Integration tests
+        env:
+          DBT_IOMETE_HOST: dev.iomete.cloud
+          DBT_IOMETE_PORT: 443
+          DBT_IOMETE_HTTPS: true
+          DBT_IOMETE_LAKEHOUSE: dbt
+          DBT_IOMETE_USER_NAME: admin
+          DBT_IOMETE_DOMAIN: default
+          DBT_IOMETE_TOKEN: ${{ secrets.DBT_IOMETE_TOKEN }}
+          DBT_IOMETE_DATAPLANE: spark-resources
+        run: |
+          tox -e integration-iomete -c integrations/dbt-iomete/tox.ini
+
+      - name: Run Functional tests
+        env:
+          DBT_IOMETE_HOST: dev.iomete.cloud
+          DBT_IOMETE_PORT: 443
+          DBT_IOMETE_HTTPS: true
+          DBT_IOMETE_LAKEHOUSE: dbt
+          DBT_IOMETE_USER_NAME: admin
+          DBT_IOMETE_DOMAIN: default
+          DBT_IOMETE_TOKEN: ${{ secrets.DBT_IOMETE_TOKEN }}
+          DBT_IOMETE_DATAPLANE: spark-resources
+        run: |
+          tox -e functional -c integrations/dbt-iomete/tox.ini
