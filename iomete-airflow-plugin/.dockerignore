@@ -1,0 +1,7 @@
+dist/
+logs/
+build/
+.git/
+.venv/
+.env/
+venv/
