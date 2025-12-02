@@ -1,5 +1,5 @@
 markupsafe==2.0.1
-protobuf==4.25.5
+protobuf==4.25.8
 dbt-core==1.7.19
 dbt-common==1.9.0
 
