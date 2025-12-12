@@ -28,7 +28,7 @@ test_deps = [
     'pytest-cov',
     'requests>=1.0.0',
     'sqlalchemy>=1.3.0,<=1.4.46',
-    'thrift-iomete==0.22.0',
+    'thrift==0.22.0',
 ]
 
 setup(
@@ -50,7 +50,7 @@ setup(
     install_requires=[
         'future',
         'python-dateutil',
-        'thrift-iomete==0.22.0'
+        'thrift==0.22.0'
     ],
     extras_require={
         'sqlalchemy': ['sqlalchemy>=1.3.0,<=1.4.46'],
