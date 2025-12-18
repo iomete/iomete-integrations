@@ -5,7 +5,6 @@ from typing import Dict, Optional, Union
 
 from airflow.exceptions import AirflowException
 from airflow.models import BaseOperator
-from airflow.utils.decorators import apply_defaults
 
 from iomete_airflow_plugin.hook import IometeHook
 
@@ -26,7 +25,6 @@ class IometeOperator(BaseOperator):
     ui_color = '#fff'
     ui_fgcolor = '#0070f3'
 
-    @apply_defaults
     def __init__(
         self,
         job_id: Optional[str] = None,

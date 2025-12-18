@@ -13,7 +13,6 @@ from iomete_airflow_plugin.iomete_operator import (
     serialize_to_dict,
 )
 
-
 class TestIometeOperator(unittest.TestCase):
     def setUp(self):
         self.job_id = 'test_job_id'
