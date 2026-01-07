@@ -11,10 +11,9 @@ license = "Apache Software License 2.0"
 readme = "README.md"
 requires-python = ">=3.9, <3.13"
 dependencies = [
-    "iomete-sdk (==2.1.2)",
-    "Flask (==2.2.5)",
-    "requests (==2.32.3)",
-    "apache-airflow (==2.10.3)"
+    "iomete-sdk (>=3.0.0)",
+    "apache-airflow (>=2.11.0,<3.0)",
+    "black (>=24.3.0)"
 
 ]
 
@@ -24,7 +23,6 @@ iomete = "iomete_airflow_plugin.plugin:IometePlugin"
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.0.0"
 bandit = "^1.7.5"
-blue = ">=0.9.1, <1.0.0"
 interrogate = ">=1.5.0, <2.0.0"
 isort = ">=5.10.1,<7.0.0"
 markdown = ">=3.4.0, <4.0.0"
