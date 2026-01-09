@@ -1748,18 +1748,19 @@ tests = ["coverage[toml]", "pytest", "pytest-cov", "pytest-mock"]
 
 [[package]]
 name = "iomete-sdk"
-version = "2.1.2"
+version = "3.0.1"
 description = "IOMETE SDK for Python."
 optional = false
-python-versions = ">=3.8"
+python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "iomete_sdk-2.1.2.tar.gz", hash = "sha256:9880d701cdcd58537b5b224054c721c55049e19cff08fe2a4cc5b2fd2e2d4bca"},
+    {file = "iomete_sdk-3.0.1-py3-none-any.whl", hash = "sha256:5cf1b95401ba7a031e6d941b443bd219bffd44031578d272e17d492f651c18d5"},
+    {file = "iomete_sdk-3.0.1.tar.gz", hash = "sha256:caf9f093db008836e30d7e340b4e01ddf8a7fbbbdc7ba2594cbbc07092fecd38"},
 ]
 
 [package.dependencies]
 dataclasses-json = "0.6.7"
-requests = "2.32.3"
+requests = "2.32.5"
 
 [package.extras]
 dev = ["pytest"]
@@ -3834,19 +3835,19 @@ typing-extensions = {version = ">=4.4.0", markers = "python_version < \"3.13\""}
 
 [[package]]
 name = "requests"
-version = "2.32.3"
+version = "2.32.5"
 description = "Python HTTP for Humans."
 optional = false
-python-versions = ">=3.8"
+python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "requests-2.32.3-py3-none-any.whl", hash = "sha256:70761cfe03c773ceb22aa2f671b4757976145175cdfca038c02654d061d6dcc6"},
-    {file = "requests-2.32.3.tar.gz", hash = "sha256:55365417734eb18255590a9ff9eb97e9e1da868d4ccd6402399eaf68af20a760"},
+    {file = "requests-2.32.5-py3-none-any.whl", hash = "sha256:2462f94637a34fd532264295e186976db0f5d453d1cdd31473c85a6a161affb6"},
+    {file = "requests-2.32.5.tar.gz", hash = "sha256:dbba0bac56e100853db0ea71b82b4dfd5fe2bf6d3754a8893c3af500cec7d7cf"},
 ]
 
 [package.dependencies]
 certifi = ">=2017.4.17"
-charset-normalizer = ">=2,<4"
+charset_normalizer = ">=2,<4"
 idna = ">=2.5,<4"
 urllib3 = ">=1.21.1,<3"
 
@@ -5249,4 +5250,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10, <3.13"
-content-hash = "05d6d073e22c426da5ad95ba6fe8301e5dddcaf5ed8c506559efd015f19a2e00"
+content-hash = "c1c140ee05ac4e1fb25b8536087903da0fd42cf91eb2b9956f529a6e7a575bf9"
