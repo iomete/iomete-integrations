@@ -8,18 +8,18 @@ from iomete_sdk.spark import SparkJobApiClient
 class IometeHook(BaseHook, ABC):
     def __init__(
         self,
-        variable_prefix: str = 'iomete_',
+        variable_prefix: str = "iomete_",
     ):
         super().__init__()
 
-        self.host = Variable.get(variable_prefix + 'host')
-        self.access_token = Variable.get(variable_prefix + 'access_token')
-        self.host_verify = str(Variable.get(variable_prefix + 'host_verify', 'True'))
+        self.host = Variable.get(variable_prefix + "host")
+        self.access_token = Variable.get(variable_prefix + "access_token")
+        self.host_verify = str(Variable.get(variable_prefix + "host_verify", "True"))
 
         self.iom_client = SparkJobApiClient(
             host=self.host,
             api_key=self.access_token,
-            verify=self.host_verify.lower() in ['true', '1', 't', 'y', 'yes'],
+            verify=self.host_verify.lower() in ["true", "1", "t", "y", "yes"],
         )
 
     def submit_job_run(self, job_id, payload):
