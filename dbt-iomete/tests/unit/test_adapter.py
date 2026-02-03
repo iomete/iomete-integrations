@@ -1,3 +1,4 @@
+import multiprocessing
 import unittest
 
 import dbt.flags as flags
@@ -44,7 +45,7 @@ class TestSparkAdapter(unittest.TestCase):
 
     def test_relation_with_database(self):
         config = self._get_target_http(self.project_cfg)
-        adapter = SparkAdapter(config)
+        adapter = SparkAdapter(config, multiprocessing.get_context("spawn"))
 
         adapter.Relation.create(schema='different', identifier='table')
         relation = adapter.Relation.create(database='something', schema='different', identifier='table')
@@ -52,7 +53,7 @@ class TestSparkAdapter(unittest.TestCase):
 
     def test_relation_without_database(self):
         config = self._get_target_http(self.project_cfg)
-        adapter = SparkAdapter(config)
+        adapter = SparkAdapter(config, multiprocessing.get_context("spawn"))
 
         relation = adapter.Relation.create(schema='different', identifier='table')
         self.assertIsNotNone(relation)
@@ -73,7 +74,7 @@ class TestSparkAdapter(unittest.TestCase):
             'target': 'test'
         }
         config = config_from_parts_or_dicts(self.project_cfg, profile)
-        adapter = SparkAdapter(config)
+        adapter = SparkAdapter(config, multiprocessing.get_context("spawn"))
 
         self.assertEqual(adapter.config.credentials.database, 'demo_catalog')
 
@@ -93,7 +94,7 @@ class TestSparkAdapter(unittest.TestCase):
             'target': 'test'
         }
         config = config_from_parts_or_dicts(self.project_cfg, profile)
-        adapter = SparkAdapter(config)
+        adapter = SparkAdapter(config, multiprocessing.get_context("spawn"))
 
         self.assertEqual(adapter.config.credentials.database, 'demo_catalog')
 

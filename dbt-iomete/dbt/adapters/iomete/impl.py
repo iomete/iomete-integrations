@@ -61,8 +61,8 @@ class SparkAdapter(SQLAdapter):
     ConnectionManager = SparkConnectionManager
     AdapterSpecificConfigs = SparkConfig
 
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self, config, mp_context):
+        super().__init__(config, mp_context)
         self.schema_service = SchemaService(credentials=config.credentials)
 
     @classmethod
