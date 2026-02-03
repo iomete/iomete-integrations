@@ -1,7 +1,7 @@
 import requests
 import json
 from typing import Optional
-from dbt.context.exceptions_jinja import raise_compiler_error
+import dbt_common.exceptions as dbt_exceptions
 from requests.adapters import HTTPAdapter
 from urllib3 import Retry
 
@@ -41,9 +41,9 @@ class SchemaService:
         except requests.exceptions.HTTPError as err:
             if err.response.text.__contains__("SCHEMA_NOT_FOUND"):      # TODO: fix the API response code
                 return None
-            raise_compiler_error(
+            raise dbt_exceptions.CompilationError(
                 f"{error_message}. "
                 f"Request failed with status: {err.response.status_code} and error message is: {err.response.text}"
             )
         except requests.exceptions.RequestException as e:
-            raise_compiler_error(f"{error_message}. Request failed with error: {e}")
+            raise dbt_exceptions.CompilationError(f"{error_message}. Request failed with error: {e}")

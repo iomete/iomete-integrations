@@ -3,10 +3,10 @@ from enum import Enum
 
 from typing import Dict, Any
 
-import dbt.exceptions
+import dbt_common.exceptions as dbt_exceptions
 from dbt.adapters.base import PythonJobHelper
 from dbt.adapters.iomete import SparkCredentials
-from dbt.events import AdapterLogger
+from dbt.adapters.events.logging import AdapterLogger
 
 from iomete_sdk.spark import SparkJobApiClient
 
@@ -74,7 +74,7 @@ class IometeSparkJobHelper(PythonJobHelper):
                     error_message = "Job {j} failed with terminal state: {s}".format(
                         j=job_id, s=app_state.value
                     )
-                    raise dbt.exceptions.DbtRuntimeError(error_message)
+                    raise dbt_exceptions.DbtRuntimeError(error_message)
             else:
                 logger.info("{} in app state: {}", job_id, app_state.value)
                 logger.info("Sleeping for {} seconds.", POLLING_PERIOD_SECONDS)
