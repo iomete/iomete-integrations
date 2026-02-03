@@ -6,7 +6,7 @@ from typing import Dict, Any
 import dbt_common.exceptions as dbt_exceptions
 from dbt.adapters.base import PythonJobHelper
 from dbt.adapters.iomete import SparkCredentials
-from dbt.events import AdapterLogger
+from dbt.adapters.events.logging import AdapterLogger
 
 from iomete_sdk.spark import SparkJobApiClient
 

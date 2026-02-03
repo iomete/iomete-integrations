@@ -2,9 +2,8 @@ from concurrent.futures import Future
 from dataclasses import dataclass
 from typing import Optional, List, Dict, Any, Union, Iterable, Type
 import agate
-from dbt.contracts.connection import AdapterResponse
-from dbt.contracts.relation import RelationType
-from dbt.context.exceptions_jinja import raise_compiler_error
+from dbt.adapters.contracts.connection import AdapterResponse
+from dbt.adapters.contracts.relation import RelationType
 
 import dbt
 import dbt_common.exceptions as dbt_exceptions
@@ -18,7 +17,7 @@ from dbt.adapters.iomete import SparkColumn
 from dbt.adapters.base import BaseRelation
 from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER
 from dbt_common.utils import AttrDict
-from dbt.events import AdapterLogger
+from dbt.adapters.events.logging import AdapterLogger
 from dbt_common.utils import executor
 import sentry_sdk
 
@@ -198,7 +197,7 @@ class SparkAdapter(SQLAdapter):
             self, information_schema, schemas, manifest,
     ) -> agate.Table:
         if len(schemas) != 1:
-            raise_compiler_error(
+            raise dbt_exceptions.DbtCompilationError(
                 f'Expected only one schema in spark _get_one_catalog, found '
                 f'{schemas}'
             )
