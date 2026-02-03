@@ -1,7 +1,7 @@
 markupsafe==2.0.1
 protobuf==6.33.5
 dbt-core==1.9.10
-dbt-common==1.13.0
+dbt-common==1.25.0
 
 
 freezegun==0.3.9
