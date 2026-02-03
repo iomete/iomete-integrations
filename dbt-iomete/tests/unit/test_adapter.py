@@ -1,7 +1,8 @@
 import unittest
 
-import dbt_common.flags as flags
-from dbt_common.exceptions import DbtProfileError, DbtRuntimeError
+import dbt.flags as flags
+from dbt.exceptions import DbtProfileError
+from dbt_common.exceptions import DbtRuntimeError
 from dbt.adapters.iomete import SparkAdapter
 from .utils import config_from_parts_or_dicts
 

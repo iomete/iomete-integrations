@@ -197,7 +197,7 @@ class SparkAdapter(SQLAdapter):
             self, information_schema, schemas, manifest,
     ) -> agate.Table:
         if len(schemas) != 1:
-            raise dbt_exceptions.DbtCompilationError(
+            raise dbt_exceptions.CompilationError(
                 f'Expected only one schema in spark _get_one_catalog, found '
                 f'{schemas}'
             )

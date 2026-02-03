@@ -41,9 +41,9 @@ class SchemaService:
         except requests.exceptions.HTTPError as err:
             if err.response.text.__contains__("SCHEMA_NOT_FOUND"):      # TODO: fix the API response code
                 return None
-            raise dbt_exceptions.DbtCompilationError(
+            raise dbt_exceptions.CompilationError(
                 f"{error_message}. "
                 f"Request failed with status: {err.response.status_code} and error message is: {err.response.text}"
             )
         except requests.exceptions.RequestException as e:
-            raise dbt_exceptions.DbtCompilationError(f"{error_message}. Request failed with error: {e}")
+            raise dbt_exceptions.CompilationError(f"{error_message}. Request failed with error: {e}")

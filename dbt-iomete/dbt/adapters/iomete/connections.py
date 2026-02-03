@@ -2,9 +2,11 @@ from contextlib import contextmanager
 
 import dbt_common.exceptions as dbt_exceptions
 from dbt.adapters.contracts.connection import Credentials, ConnectionState, AdapterResponse
+from dbt.adapters.exceptions import FailedToConnectError
 from dbt.adapters.sql import SQLConnectionManager
 from dbt.adapters.events.logging import AdapterLogger
-from dbt_common.utils import DECIMALS
+from dbt.exceptions import DbtProfileError
+from dbt_common.utils.encoding import DECIMALS
 
 from TCLIService.ttypes import TOperationState as ThriftState
 from pyhive import hive
@@ -235,10 +237,10 @@ class SparkConnectionManager(SQLConnectionManager):
     def validate_creds(cls, creds, required):
         for key in required:
             if not hasattr(creds, key):
-                raise dbt_exceptions.DbtProfileError(f"The config '{key}' is required to connect to iomete")
+                raise DbtProfileError(f"The config '{key}' is required to connect to iomete")
 
             if creds.__dict__[key] is None:
-                raise dbt_exceptions.DbtProfileError(
+                raise DbtProfileError(
                     f"The config '{key}' is set to none! This config is required to connect to iomete")
 
     @classmethod
@@ -272,7 +274,7 @@ class SparkConnectionManager(SQLConnectionManager):
                     # Perhaps a password is invalid, or something
                     msg = 'Failed to connect. Make sure lakehouse is in non-terminated state ' \
                           'and credentials (user/password) are correct'
-                    raise dbt_exceptions.FailedToConnectError(msg) from e
+                    raise FailedToConnectError(msg) from e
                 retryable_message = _is_retryable_error(e)
                 if retryable_message and creds.connect_retries > 0:
                     msg = (
@@ -293,7 +295,7 @@ class SparkConnectionManager(SQLConnectionManager):
                     logger.warning(msg)
                     time.sleep(creds.connect_timeout)
                 else:
-                    raise dbt_exceptions.FailedToConnectError(
+                    raise FailedToConnectError(
                         'Failed to connect! Make sure host, port, protocol (https/http) is correct!'
                     ) from e
         else:
