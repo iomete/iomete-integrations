@@ -17,4 +17,4 @@ pytest-csv
 twine
 
 # Test requirements
-dbt-tests-adapter==1.9.10
+dbt-tests-adapter==1.9.3
