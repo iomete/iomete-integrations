@@ -1,6 +1,6 @@
 markupsafe==2.0.1
 protobuf==6.33.5
-dbt-core==1.9.10
+dbt-core==1.9.0
 dbt-common==1.9.0
 
 
