@@ -7,7 +7,7 @@ from dbt.contracts.relation import RelationType
 from dbt.context.exceptions_jinja import raise_compiler_error
 
 import dbt
-import dbt.exceptions
+import dbt_common.exceptions as dbt_exceptions
 
 from dbt.adapters.base import AdapterConfig, PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed
@@ -16,10 +16,10 @@ from dbt.adapters.iomete import SparkConnectionManager
 from dbt.adapters.iomete import SparkRelation
 from dbt.adapters.iomete import SparkColumn
 from dbt.adapters.base import BaseRelation
-from dbt.clients.agate_helper import DEFAULT_TYPE_TESTER
+from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER
 from dbt_common.utils import AttrDict
 from dbt.events import AdapterLogger
-from dbt.utils import executor
+from dbt_common.utils import executor
 import sentry_sdk
 
 from dbt.adapters.iomete.python_job import IometeSparkJobHelper
@@ -157,7 +157,7 @@ class SparkAdapter(SQLAdapter):
                 column_index=idx,
                 dtype=column['data_type'],
             ) for idx, column in enumerate(desc_table_columns)]
-        except dbt.exceptions.DbtRuntimeError as e:
+        except dbt_exceptions.DbtRuntimeError as e:
             # spark would throw error when table doesn't exist, where other
             # CDW would just return and empty list, normalizing the behavior here
             errmsg = getattr(e, "msg", "")
