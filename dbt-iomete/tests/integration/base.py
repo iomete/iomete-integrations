@@ -1,3 +1,4 @@
+import multiprocessing
 import os
 import random
 import shutil
@@ -13,6 +14,8 @@ from io import StringIO
 
 import yaml
 from unittest.mock import patch
+
+mp_context = multiprocessing.get_context("spawn")
 
 from dbt.cli.main import dbtRunner
 from dbt.deprecations import reset_deprecations
@@ -314,7 +317,7 @@ class DBTIntegrationTest(unittest.TestCase):
         set_from_args(Namespace(**kwargs), None)
         config = RuntimeConfig.from_args(TestArgs(kwargs))
 
-        register_adapter(config)
+        register_adapter(config, mp_context)
         adapter = get_adapter(config)
         adapter.cleanup_connections()
         self.adapter_type = adapter.type()
@@ -331,7 +334,7 @@ class DBTIntegrationTest(unittest.TestCase):
         # get any current run adapter and clean up its connections before we
         # reset them. It'll probably be different from ours because
         # handle_and_check() calls reset_adapters().
-        register_adapter(self.config)
+        register_adapter(self.config, mp_context)
         adapter = get_adapter(self.config)
         if adapter is not self.adapter:
             adapter.cleanup_connections()
