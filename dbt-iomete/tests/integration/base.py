@@ -17,14 +17,12 @@ from unittest.mock import patch
 from dbt.cli.main import dbtRunner
 from dbt.deprecations import reset_deprecations
 from dbt.adapters.factory import get_adapter, reset_adapters, register_adapter
-from dbt.clients.jinja import template_cache
+from dbt.clients.jinja import _render_cache
 from dbt.config import RuntimeConfig
 from dbt.context import providers
-from dbt.logger import log_manager
-from dbt.events.functions import (
-    capture_stdout_logs, stop_capture_stdout_logs, setup_event_logger
-)
-from dbt.events import AdapterLogger
+from dbt_common.events.functions import capture_stdout_logs, stop_capture_stdout_logs
+from dbt.events.logging import setup_event_logger, cleanup_event_logger
+from dbt.adapters.events.logging import AdapterLogger
 from dbt.contracts.graph.manifest import Manifest
 
 logger = AdapterLogger("iomete")
@@ -190,7 +188,7 @@ class DBTIntegrationTest(unittest.TestCase):
 
     def setUp(self):
         # self.dbt_core_install_root = os.path.dirname(dbt.__file__)
-        log_manager.reset_handlers()
+        cleanup_event_logger()
         self.initial_dir = INITIAL_ROOT
         os.chdir(self.initial_dir)
         # before we go anywhere, collect the initial path info
@@ -241,7 +239,7 @@ class DBTIntegrationTest(unittest.TestCase):
 
         self._created_schemas = set()
         reset_deprecations()
-        template_cache.clear()
+        _render_cache.clear()
 
         self.use_profile()
         self.use_default_project()
@@ -424,7 +422,7 @@ class DBTIntegrationTest(unittest.TestCase):
         return res, stdout
 
     def run_dbt_and_check(self, args=None, profiles_dir=True):
-        log_manager.reset_handlers()
+        cleanup_event_logger()
         if args is None:
             args = ["run"]
 
