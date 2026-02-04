@@ -71,9 +71,9 @@ setup(
     packages=find_namespace_packages(include=["dbt", "dbt.*"]),
     include_package_data=True,
     install_requires=[
-        "protobuf==4.25.5",
+        "protobuf>=6.33.5",
         "dbt-core~={}".format(dbt_core_version),
-        "dbt-common==1.9.0",
+        "dbt-common>=1.13.0,<2.0",
         "sqlparams>=3.0.0",
         "py-hive-iomete>=2.1.3",
         "sentry-sdk==2.20.0",

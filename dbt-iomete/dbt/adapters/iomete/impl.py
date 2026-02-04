@@ -2,8 +2,8 @@ from concurrent.futures import Future
 from dataclasses import dataclass
 from typing import Optional, List, Dict, Any, Union, Iterable, Type
 import agate
-from dbt.contracts.connection import AdapterResponse
-from dbt.contracts.relation import RelationType
+from dbt.adapters.contracts.connection import AdapterResponse
+from dbt.adapters.contracts.relation import RelationType
 from dbt.context.exceptions_jinja import raise_compiler_error
 
 import dbt
@@ -16,10 +16,10 @@ from dbt.adapters.iomete import SparkConnectionManager
 from dbt.adapters.iomete import SparkRelation
 from dbt.adapters.iomete import SparkColumn
 from dbt.adapters.base import BaseRelation
-from dbt.clients.agate_helper import DEFAULT_TYPE_TESTER
+from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER
 from dbt_common.utils import AttrDict
-from dbt.events import AdapterLogger
-from dbt.utils import executor
+from dbt.adapters.events.logging import AdapterLogger
+from dbt_common.utils.executor import executor
 import sentry_sdk
 
 from dbt.adapters.iomete.python_job import IometeSparkJobHelper
@@ -62,8 +62,8 @@ class SparkAdapter(SQLAdapter):
     ConnectionManager = SparkConnectionManager
     AdapterSpecificConfigs = SparkConfig
 
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self, config, mp_context):
+        super().__init__(config, mp_context)
         self.schema_service = SchemaService(credentials=config.credentials)
 
     @classmethod

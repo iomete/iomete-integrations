@@ -1,10 +1,9 @@
 from contextlib import contextmanager
 
 import dbt.exceptions
-from dbt.adapters.base import Credentials
+from dbt.adapters.contracts.connection import Credentials, ConnectionState, AdapterResponse
 from dbt.adapters.sql import SQLConnectionManager
-from dbt.contracts.connection import ConnectionState, AdapterResponse
-from dbt.events import AdapterLogger
+from dbt.adapters.events.logging import AdapterLogger
 from dbt.utils import DECIMALS
 
 from TCLIService.ttypes import TOperationState as ThriftState
