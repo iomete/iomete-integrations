@@ -14,11 +14,13 @@ class IometeHook(BaseHook, ABC):
 
         self.host = Variable.get(variable_prefix + "host")
         self.access_token = Variable.get(variable_prefix + "access_token")
+        self.domain = Variable.get(variable_prefix + "domain")
         self.host_verify = str(Variable.get(variable_prefix + "host_verify", "True"))
 
         self.iom_client = SparkJobApiClient(
             host=self.host,
             api_key=self.access_token,
+            domain=self.domain,
             verify=self.host_verify.lower() in ["true", "1", "t", "y", "yes"],
         )
 
