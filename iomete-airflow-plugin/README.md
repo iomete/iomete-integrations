@@ -14,8 +14,11 @@ Restart you server and check the plugins page on Airflow's admin panel to make s
 
 ## Configuration
 
-You need to add `iomete_access_token` and `iomete_host` keys to airflow's Variables page.  
-Check our documentation page on how to generate personal access token.
+You need to add the following keys to airflow's Variables page:
+
+- `iomete_access_token` - Personal access token. Check our documentation page on how to generate one.
+- `iomete_host` - IOMETE platform host URL.
+- `iomete_domain` - IOMETE domain identifier (required since v2.0.0).
 
 ## Usage
 

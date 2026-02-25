@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 from airflow import DAG
 from airflow.exceptions import AirflowException
 
+from iomete_airflow_plugin.hook import IometeHook
 from iomete_airflow_plugin.iomete_operator import (
     XCOM_JOB_ID_KEY,
     XCOM_RUN_ID_KEY,
@@ -129,6 +130,67 @@ class TestApplicationStateType(unittest.TestCase):
         self.assertTrue(ApplicationStateType.CompletedState.is_successful)
         self.assertFalse(ApplicationStateType.FailedState.is_successful)
         self.assertFalse(ApplicationStateType.AbortedState.is_successful)
+
+
+class TestIometeHook(unittest.TestCase):
+    @patch("iomete_airflow_plugin.hook.SparkJobApiClient")
+    @patch("iomete_airflow_plugin.hook.Variable")
+    def test_hook_passes_domain_to_client(self, mock_variable, mock_client_class):
+        mock_variable.get.side_effect = lambda key, *args, **kwargs: {
+            "iomete_host": "https://test.iomete.com",
+            "iomete_access_token": "test_token",
+            "iomete_domain": "test_domain",
+            "iomete_host_verify": "True",
+        }.get(key, *args)
+
+        hook = IometeHook.__new__(IometeHook)
+        IometeHook.__init__(hook)
+
+        mock_client_class.assert_called_once_with(
+            host="https://test.iomete.com",
+            api_key="test_token",
+            domain="test_domain",
+            verify=True,
+        )
+
+    @patch("iomete_airflow_plugin.hook.SparkJobApiClient")
+    @patch("iomete_airflow_plugin.hook.Variable")
+    def test_hook_with_custom_prefix(self, mock_variable, mock_client_class):
+        mock_variable.get.side_effect = lambda key, *args, **kwargs: {
+            "custom_host": "https://custom.iomete.com",
+            "custom_access_token": "custom_token",
+            "custom_domain": "custom_domain",
+            "custom_host_verify": "False",
+        }.get(key, *args)
+
+        hook = IometeHook.__new__(IometeHook)
+        IometeHook.__init__(hook, variable_prefix="custom_")
+
+        mock_client_class.assert_called_once_with(
+            host="https://custom.iomete.com",
+            api_key="custom_token",
+            domain="custom_domain",
+            verify=False,
+        )
+
+    @patch("iomete_airflow_plugin.hook.SparkJobApiClient")
+    @patch("iomete_airflow_plugin.hook.Variable")
+    def test_hook_missing_domain_raises_error(self, mock_variable, mock_client_class):
+        def side_effect(key, *args, **kwargs):
+            values = {
+                "iomete_host": "https://test.iomete.com",
+                "iomete_access_token": "test_token",
+                "iomete_host_verify": "True",
+            }
+            if key in values:
+                return values[key]
+            raise KeyError(f"Variable {key} does not exist")
+
+        mock_variable.get.side_effect = side_effect
+
+        with self.assertRaises(KeyError):
+            hook = IometeHook.__new__(IometeHook)
+            IometeHook.__init__(hook)
 
 
 if __name__ == "__main__":
