@@ -67,6 +67,7 @@ class IometeOperator(BaseOperator):
         dict_data = serialize_to_dict(self.config_override)
         self.run_id = hook.submit_job_run(self.job_id, dict_data)["id"]
         self.log.info(f"IOMETE Job submitted. Run ID {self.run_id}")
+        time.sleep(5)
         self._monitor_app(hook, context)
 
     def on_kill(self):
