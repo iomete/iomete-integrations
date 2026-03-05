@@ -39,28 +39,29 @@ jobs:
         run: |
           tox -e unit -c dbt-iomete/tox.ini
 
-      - name: Run Integration tests
-        env:
-          DBT_IOMETE_HOST: dev.iomete.cloud
-          DBT_IOMETE_PORT: 443
-          DBT_IOMETE_HTTPS: true
-          DBT_IOMETE_LAKEHOUSE: dbt
-          DBT_IOMETE_USER_NAME: admin
-          DBT_IOMETE_DOMAIN: default
-          DBT_IOMETE_TOKEN: ${{ secrets.DBT_IOMETE_TOKEN }}
-          DBT_IOMETE_DATAPLANE: spark-resources
-        run: |
-          tox -e integration-iomete -c dbt-iomete/tox.ini
+      # TODO: Re-enable once dev.iomete.cloud lakehouse "dbt" is restored
+      # - name: Run Integration tests
+      #   env:
+      #     DBT_IOMETE_HOST: dev.iomete.cloud
+      #     DBT_IOMETE_PORT: 443
+      #     DBT_IOMETE_HTTPS: true
+      #     DBT_IOMETE_LAKEHOUSE: dbt
+      #     DBT_IOMETE_USER_NAME: admin
+      #     DBT_IOMETE_DOMAIN: default
+      #     DBT_IOMETE_TOKEN: ${{ secrets.DBT_IOMETE_TOKEN }}
+      #     DBT_IOMETE_DATAPLANE: spark-resources
+      #   run: |
+      #     tox -e integration-iomete -c dbt-iomete/tox.ini
 
-      - name: Run Functional tests
-        env:
-          DBT_IOMETE_HOST: dev.iomete.cloud
-          DBT_IOMETE_PORT: 443
-          DBT_IOMETE_HTTPS: true
-          DBT_IOMETE_LAKEHOUSE: dbt
-          DBT_IOMETE_USER_NAME: admin
-          DBT_IOMETE_DOMAIN: default
-          DBT_IOMETE_TOKEN: ${{ secrets.DBT_IOMETE_TOKEN }}
-          DBT_IOMETE_DATAPLANE: spark-resources
-        run: |
-          tox -e functional -c dbt-iomete/tox.ini
+      # - name: Run Functional tests
+      #   env:
+      #     DBT_IOMETE_HOST: dev.iomete.cloud
+      #     DBT_IOMETE_PORT: 443
+      #     DBT_IOMETE_HTTPS: true
+      #     DBT_IOMETE_LAKEHOUSE: dbt
+      #     DBT_IOMETE_USER_NAME: admin
+      #     DBT_IOMETE_DOMAIN: default
+      #     DBT_IOMETE_TOKEN: ${{ secrets.DBT_IOMETE_TOKEN }}
+      #     DBT_IOMETE_DATAPLANE: spark-resources
+      #   run: |
+      #     tox -e functional -c dbt-iomete/tox.ini
