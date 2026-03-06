@@ -53,7 +53,7 @@ class SparkCredentials(Credentials):
             self.database = IOMETE_DEFAULT_CATALOG_NAME
 
         if "." in (self.schema or ""):
-            raise DbtRuntimeError(
+            raise ValidationError(
                 f"The schema should not contain '.': {self.schema}\n"
                 "If you are trying to set a catalog, please use `catalog` instead.\n"
             )

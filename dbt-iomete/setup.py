@@ -71,7 +71,7 @@ setup(
     packages=find_namespace_packages(include=["dbt", "dbt.*"]),
     include_package_data=True,
     install_requires=[
-        "protobuf==5.29.6",
+        "protobuf>=5.29.6,<6.0",
         "dbt-core~={}".format(dbt_core_version),
         "dbt-adapters>=1.10.0,<2.0",
         "dbt-common>=1.13.0,<2.0",

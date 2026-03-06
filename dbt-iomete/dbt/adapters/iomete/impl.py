@@ -176,9 +176,9 @@ class SparkAdapter(SQLAdapter):
             as_dict['table_database'] = column.table_database
             yield as_dict
 
-    def get_catalog(self, manifest):
+    def get_catalog(self, relation_configs, used_schemas):
 
-        schema_map = self._get_catalog_schemas(manifest)
+        schema_map = self._get_catalog_schemas(relation_configs)
 
         with executor(self.config) as tpe:
             futures: List[Future[agate.Table]] = []
@@ -186,13 +186,13 @@ class SparkAdapter(SQLAdapter):
                 for schema in schemas:
                     futures.append(tpe.submit_connected(
                         self, schema,
-                        self._get_one_catalog, info, [schema], manifest
+                        self._get_one_catalog, info, [schema], used_schemas
                     ))
             catalogs, exceptions = catch_as_completed(futures)
         return catalogs, exceptions
 
     def _get_one_catalog(
-            self, information_schema, schemas, manifest,
+            self, information_schema, schemas, used_schemas,
     ) -> agate.Table:
         if len(schemas) != 1:
             raise CompilationError(
