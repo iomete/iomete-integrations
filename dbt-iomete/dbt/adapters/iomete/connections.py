@@ -1,11 +1,13 @@
 from contextlib import contextmanager
 
-import dbt.exceptions
-from dbt.adapters.base import Credentials
+from dbt.adapters.contracts.connection import Credentials, ConnectionState, AdapterResponse
 from dbt.adapters.sql import SQLConnectionManager
-from dbt.contracts.connection import ConnectionState, AdapterResponse
-from dbt.events import AdapterLogger
-from dbt.utils import DECIMALS
+from dbt.adapters.events.logging import AdapterLogger
+from dbt.adapters.exceptions import FailedToConnectError
+from dbt.exceptions import DbtProfileError
+from dbt_common.exceptions import DbtRuntimeError, DbtDatabaseError
+from dbt_common.exceptions import ValidationError
+from dbt_common.utils.encoding import DECIMALS
 
 from TCLIService.ttypes import TOperationState as ThriftState
 from pyhive import hive
@@ -46,12 +48,12 @@ class SparkCredentials(Credentials):
 
     def __post_init__(self):
         if self.database is not None and not self.database.strip():
-            raise dbt.exceptions.ValidationError(f"Invalid catalog name : {self.database}.")
+            raise ValidationError(f"Invalid catalog name : {self.database}.")
         if self.database is None:
             self.database = IOMETE_DEFAULT_CATALOG_NAME
 
         if "." in (self.schema or ""):
-            raise dbt.exceptions.ValidationError(
+            raise ValidationError(
                 f"The schema should not contain '.': {self.schema}\n"
                 "If you are trying to set a catalog, please use `catalog` instead.\n"
             )
@@ -159,14 +161,14 @@ class PyhiveConnectionWrapper(object):
         if poll_state.errorMessage:
             logger.debug("Poll response: {}".format(poll_state))
             logger.debug("Poll status: {}".format(state))
-            raise dbt.exceptions.DbtDatabaseError(poll_state.errorMessage)
+            raise DbtDatabaseError(poll_state.errorMessage)
 
         elif state not in STATE_SUCCESS:
             status_type = ThriftState._VALUES_TO_NAMES.get(
                 state,
                 'Unknown<{!r}>'.format(state))
 
-            raise dbt.exceptions.DbtDatabaseError(
+            raise DbtDatabaseError(
                 "Query failed with status: {}".format(status_type))
 
         logger.debug("Poll status: {}, query complete".format(state))
@@ -204,9 +206,9 @@ class SparkConnectionManager(SQLConnectionManager):
             thrift_resp = exc.args[0]
             if hasattr(thrift_resp, 'status'):
                 msg = thrift_resp.status.errorMessage
-                raise dbt.exceptions.DbtRuntimeError(msg)
+                raise DbtRuntimeError(msg)
             else:
-                raise dbt.exceptions.DbtRuntimeError(str(exc))
+                raise DbtRuntimeError(str(exc))
 
     def cancel(self, connection):
         connection.handle.cancel()
@@ -236,10 +238,10 @@ class SparkConnectionManager(SQLConnectionManager):
     def validate_creds(cls, creds, required):
         for key in required:
             if not hasattr(creds, key):
-                raise dbt.exceptions.DbtProfileError(f"The config '{key}' is required to connect to iomete")
+                raise DbtProfileError(f"The config '{key}' is required to connect to iomete")
 
             if creds.__dict__[key] is None:
-                raise dbt.exceptions.DbtProfileError(
+                raise DbtProfileError(
                     f"The config '{key}' is set to none! This config is required to connect to iomete")
 
     @classmethod
@@ -273,7 +275,7 @@ class SparkConnectionManager(SQLConnectionManager):
                     # Perhaps a password is invalid, or something
                     msg = 'Failed to connect. Make sure lakehouse is in non-terminated state ' \
                           'and credentials (user/password) are correct'
-                    raise dbt.exceptions.FailedToConnectError(msg) from e
+                    raise FailedToConnectError(msg) from e
                 retryable_message = _is_retryable_error(e)
                 if retryable_message and creds.connect_retries > 0:
                     msg = (
@@ -294,7 +296,7 @@ class SparkConnectionManager(SQLConnectionManager):
                     logger.warning(msg)
                     time.sleep(creds.connect_timeout)
                 else:
-                    raise dbt.exceptions.FailedToConnectError(
+                    raise FailedToConnectError(
                         'Failed to connect! Make sure host, port, protocol (https/http) is correct!'
                     ) from e
         else:

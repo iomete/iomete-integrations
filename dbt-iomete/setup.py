@@ -4,9 +4,9 @@ import sys
 import re
 
 # require python 3.6 or newer
-if sys.version_info < (3, 7):
+if sys.version_info < (3, 9):
     print("Error: dbt does not support this version of Python.")
-    print("Please upgrade to Python 3.7 or higher.")
+    print("Please upgrade to Python 3.9 or higher.")
     sys.exit(1)
 
 
@@ -55,7 +55,7 @@ def _get_dbt_core_version():
 
 
 package_name = "dbt-iomete"
-package_version = "1.7.9"
+package_version = "1.8.0"
 dbt_core_version = _get_dbt_core_version()
 description = """The Apache Spark (IOMETE) adapter plugin for dbt"""
 
@@ -71,9 +71,10 @@ setup(
     packages=find_namespace_packages(include=["dbt", "dbt.*"]),
     include_package_data=True,
     install_requires=[
-        "protobuf==4.25.5",
+        "protobuf>=5.29.6,<6.0",
         "dbt-core~={}".format(dbt_core_version),
-        "dbt-common==1.9.0",
+        "dbt-adapters>=1.10.0,<2.0",
+        "dbt-common>=1.13.0,<2.0",
         "sqlparams>=3.0.0",
         "py-hive-iomete>=2.1.3",
         "sentry-sdk==2.20.0",
@@ -86,11 +87,10 @@ setup(
         "Operating System :: Microsoft :: Windows",
         "Operating System :: MacOS :: MacOS X",
         "Operating System :: POSIX :: Linux",
-        "Programming Language :: Python :: 3.7",
-        "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
     ],
-    python_requires=">=3.7",
+    python_requires=">=3.9",
 )

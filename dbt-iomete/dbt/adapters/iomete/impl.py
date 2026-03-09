@@ -2,12 +2,9 @@ from concurrent.futures import Future
 from dataclasses import dataclass
 from typing import Optional, List, Dict, Any, Union, Iterable, Type
 import agate
-from dbt.contracts.connection import AdapterResponse
-from dbt.contracts.relation import RelationType
-from dbt.context.exceptions_jinja import raise_compiler_error
-
-import dbt
-import dbt.exceptions
+from dbt.adapters.contracts.connection import AdapterResponse
+from dbt.adapters.contracts.relation import RelationType
+from dbt_common.exceptions import DbtRuntimeError, CompilationError
 
 from dbt.adapters.base import AdapterConfig, PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed
@@ -16,10 +13,10 @@ from dbt.adapters.iomete import SparkConnectionManager
 from dbt.adapters.iomete import SparkRelation
 from dbt.adapters.iomete import SparkColumn
 from dbt.adapters.base import BaseRelation
-from dbt.clients.agate_helper import DEFAULT_TYPE_TESTER
+from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER
 from dbt_common.utils import AttrDict
-from dbt.events import AdapterLogger
-from dbt.utils import executor
+from dbt.adapters.events.logging import AdapterLogger
+from dbt_common.utils import executor
 import sentry_sdk
 
 from dbt.adapters.iomete.python_job import IometeSparkJobHelper
@@ -62,8 +59,8 @@ class SparkAdapter(SQLAdapter):
     ConnectionManager = SparkConnectionManager
     AdapterSpecificConfigs = SparkConfig
 
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self, config, mp_context=None):
+        super().__init__(config, mp_context)
         self.schema_service = SchemaService(credentials=config.credentials)
 
     @classmethod
@@ -157,7 +154,7 @@ class SparkAdapter(SQLAdapter):
                 column_index=idx,
                 dtype=column['data_type'],
             ) for idx, column in enumerate(desc_table_columns)]
-        except dbt.exceptions.DbtRuntimeError as e:
+        except DbtRuntimeError as e:
             # spark would throw error when table doesn't exist, where other
             # CDW would just return and empty list, normalizing the behavior here
             errmsg = getattr(e, "msg", "")
@@ -179,9 +176,9 @@ class SparkAdapter(SQLAdapter):
             as_dict['table_database'] = column.table_database
             yield as_dict
 
-    def get_catalog(self, manifest):
+    def get_catalog(self, relation_configs, used_schemas):
 
-        schema_map = self._get_catalog_schemas(manifest)
+        schema_map = self._get_catalog_schemas(relation_configs)
 
         with executor(self.config) as tpe:
             futures: List[Future[agate.Table]] = []
@@ -189,16 +186,16 @@ class SparkAdapter(SQLAdapter):
                 for schema in schemas:
                     futures.append(tpe.submit_connected(
                         self, schema,
-                        self._get_one_catalog, info, [schema], manifest
+                        self._get_one_catalog, info, [schema], used_schemas
                     ))
             catalogs, exceptions = catch_as_completed(futures)
         return catalogs, exceptions
 
     def _get_one_catalog(
-            self, information_schema, schemas, manifest,
+            self, information_schema, schemas, used_schemas,
     ) -> agate.Table:
         if len(schemas) != 1:
-            raise_compiler_error(
+            raise CompilationError(
                 f'Expected only one schema in spark _get_one_catalog, found '
                 f'{schemas}'
             )

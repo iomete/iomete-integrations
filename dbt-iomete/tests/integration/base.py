@@ -17,14 +17,13 @@ from unittest.mock import patch
 from dbt.cli.main import dbtRunner
 from dbt.deprecations import reset_deprecations
 from dbt.adapters.factory import get_adapter, reset_adapters, register_adapter
-from dbt.clients.jinja import template_cache
+from dbt_common.clients.jinja import template_cache
 from dbt.config import RuntimeConfig
 from dbt.context import providers
 from dbt.logger import log_manager
-from dbt.events.functions import (
-    capture_stdout_logs, stop_capture_stdout_logs, setup_event_logger
-)
-from dbt.events import AdapterLogger
+from dbt.events.logging import setup_event_logger
+from dbt.tests.util import capture_stdout_logs, stop_capture_stdout_logs
+from dbt.adapters.events.logging import AdapterLogger
 from dbt.contracts.graph.manifest import Manifest
 
 logger = AdapterLogger("iomete")
