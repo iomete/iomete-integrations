@@ -20,7 +20,7 @@ DB-API
         port=<data_plane_port>,
         scheme="http", # or "https"
         lakehouse="<lakehouse_cluster_name>",
-        data_plane=None # or data_plane (namespace)
+        data_plane=None, # or data_plane (namespace)
         database="default",
         username="<username>",
         password="<password>"
@@ -44,7 +44,7 @@ DB-API (asynchronous)
         port=<data_plane_port>,
         scheme="http", # or "https"
         lakehouse="<lakehouse_cluster_name>",
-        data_plane=None # or data_plane (namespace)
+        data_plane=None, # or data_plane (namespace)
         database="default",
         username="<username>",
         password="<password>"
@@ -101,6 +101,7 @@ First install this package to register it with SQLAlchemy (see ``setup.py``).
             Table(
                 "my_awesome_data",
                 MetaData(),
+                schema="<database>",
                 autoload_with=engine,
             )
         )
