@@ -20,7 +20,7 @@ DB-API
         port=<data_plane_port>,
         scheme="http", # or "https"
         lakehouse="<lakehouse_cluster_name>",
-        data_plane=None # or data_plane (namespace)
+        data_plane=None, # or data_plane (namespace)
         database="default",
         username="<username>",
         password="<password>"
@@ -44,7 +44,7 @@ DB-API (asynchronous)
         port=<data_plane_port>,
         scheme="http", # or "https"
         lakehouse="<lakehouse_cluster_name>",
-        data_plane=None # or data_plane (namespace)
+        data_plane=None, # or data_plane (namespace)
         database="default",
         username="<username>",
         password="<password>"
@@ -75,11 +75,11 @@ First install this package to register it with SQLAlchemy (see ``setup.py``).
 
 .. code-block:: python
 
+    from sqlalchemy import MetaData, Table
     from sqlalchemy.engine import create_engine
     from sqlalchemy.orm import sessionmaker
-    from sqlalchemy.schema import *
 
-    # Possible dialects (hive and iomete are both operate identically):
+    # Possible dialects (hive and iomete operate identically):
     # hive+http
     # hive+https
     # iomete+http
@@ -96,9 +96,18 @@ First install this package to register it with SQLAlchemy (see ``setup.py``).
     #    'hive+https://<username>:<password>@<data_plane_host>:<data_plane_port>/<database>?lakehouse=<lakehouse_cluster_name>')
 
     session = sessionmaker(bind=engine)()
-    records = session.query(Table('my_awesome_data', MetaData(bind=engine), autoload=True)) \
-        .limit(10) \
+    records = (
+        session.query(
+            Table(
+                "my_awesome_data",
+                MetaData(),
+                schema="<database>",
+                autoload_with=engine,
+            )
+        )
+        .limit(10)
         .all()
+    )
     print(records)
 
 Note: query generation functionality is not exhaustive or fully tested, but there should be no
