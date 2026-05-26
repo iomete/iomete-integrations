@@ -1,3 +1,8 @@
+## dbt-iomete 1.8.0 (Unreleased)
+- Replaced the legacy `py-hive-iomete` connection path with `iomete-sqlalchemy` over Arrow Flight SQL.
+- Added `cluster` and `data_plane` profile support while keeping `lakehouse` and `dataplane` as compatibility aliases.
+- Documented the new SQLAlchemy URL shape and the unsupported legacy Hive/Thrift connection path.
+
 ## dbt-iomete 1.7.9 (May 8, 2025)
 - Added support for table properties via `tblproperties` config.
 - Added support for predicates in incremental models via `incremental_predicates` config.

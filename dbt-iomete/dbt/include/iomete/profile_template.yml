@@ -9,12 +9,12 @@ prompts:
   https:
     hint: "Connection is https. Set to false for http."
     default: true
-  dataplane:
-    hint: "dataplane name that dbt will connect"
+  data_plane:
+    hint: "data plane name that dbt will connect"
   domain:
     hint: "domain name that dbt will connect"
-  lakehouse:
-    hint: "lakehouse name that dbt will connect"
+  cluster:
+    hint: "compute cluster/lakehouse name that dbt will connect"
   catalog:
     hint: "default catalog that dbt will build objects in"
   schema:

@@ -75,8 +75,8 @@ setup(
         "dbt-core~={}".format(dbt_core_version),
         "dbt-adapters>=1.10.0,<2.0",
         "dbt-common>=1.13.0,<2.0",
+        "iomete-sqlalchemy>=1.0.22",
         "sqlparams>=3.0.0",
-        "py-hive-iomete>=2.1.3",
         "sentry-sdk==2.20.0",
         "iomete-sdk==3.0.0"
     ],

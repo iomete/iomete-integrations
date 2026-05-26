@@ -53,14 +53,19 @@ iomete:
       type: iomete
       host: <host>
       port: 443
-      https: true # or http
-      dataplane: <iomete_dataplane>
+      https: true
+      data_plane: <iomete_data_plane>
       domain: <iomete_domain>
-      lakehouse: <serverless_lakehouse_name>
+      cluster: <compute_cluster_or_lakehouse_name>
       catalog: <catalog_name>
       schema: <database_name>
       user: "{{ env_var('DBT_IOMETE_USER_NAME') }}"
       token: "{{ env_var('DBT_IOMETE_TOKEN') }}"
 ```
+
+`dbt-iomete` connects through the `iomete-sqlalchemy` dialect over Arrow Flight SQL. Existing profiles
+that use `dataplane` and `lakehouse` continue to work; new profiles should prefer `data_plane` and
+`cluster`, matching the `iomete://<user>:<token>@<host>:443/<catalog>/<schema>?cluster=<cluster>&data_plane=<data_plane>`
+SQLAlchemy URL format.
 
 For more information, consult [the docs](https://iomete.com/docs/guides/dbt/getting-started-with-iomete-dbt).
