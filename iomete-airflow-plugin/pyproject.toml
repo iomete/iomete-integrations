@@ -1,6 +1,6 @@
 [project]
 name = "iomete-airflow-plugin"
-version = "2.0.0"
+version = "2.0.2"
 description = "An Airflow plugin for interacting with IOMETE platform."
 authors = [
     {name = "IOMETE"}
@@ -14,6 +14,11 @@ dependencies = [
     "iomete-sdk (>=3.1.0,<4.0.0)",
     "requests (>=2.32.4)",
     "apache-airflow (>=3.2.1,<4.0.0)",
+    # Security floors for transitive deps (>= only, no upper caps) so pip-install users get patched versions:
+    "urllib3 (>=2.7.0)",           # CVE-2026-44431 / CVE-2026-44432 (IE-626, IE-640)
+    "idna (>=3.16)",               # CVE-2026-45409 (IE-686)
+    "Mako (>=1.3.12)",             # CVE-2026-44307 (IE-556)
+    "python-multipart (>=0.0.29)", # CVE-2026-42561 (IE-557)
 ]
 
 [tool.poetry.plugins."airflow.plugins"]
