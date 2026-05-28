@@ -13,7 +13,7 @@ requires-python = ">=3.10, <3.13"
 dependencies = [
     "iomete-sdk (>=3.1.0,<4.0.0)",
     "requests (>=2.32.4)",
-    "apache-airflow (>=3.2.0,<4.0.0)",
+    "apache-airflow (>=3.2.1,<4.0.0)",
 ]
 
 [tool.poetry.plugins."airflow.plugins"]
