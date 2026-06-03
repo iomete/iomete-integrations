@@ -17,13 +17,15 @@ class IometeOperator(BaseOperator):
     Run Spark job using IOMETE SDK
     """
 
-    # Used in airflow.models.BaseOperator
+    # Used in airflow.models.BaseOperator.
+    # `access_token` is intentionally excluded: templated fields are persisted to the
+    # rendered_task_instance_fields table and shown in the UI's "Rendered Template" tab,
+    # which would expose raw tokens. Use `access_token_variable` for templated lookups.
     template_fields = (
         "job_id",
         "config_override",
         "host",
         "domain",
-        "access_token",
         "access_token_variable",
     )
     template_ext = (".json",)

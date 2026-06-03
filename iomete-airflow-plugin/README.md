@@ -20,7 +20,7 @@ Pass your IOMETE connection details directly to `IometeOperator`. A single Airfl
 from airflow import DAG
 from iomete_airflow_plugin.iomete_operator import IometeOperator
 
-dag = DAG(dag_id="...", default_args={}, schedule_interval=None)
+dag = DAG(dag_id="...", default_args={}, schedule=None)
 
 task = IometeOperator(
     task_id="random_task_id",
@@ -42,7 +42,7 @@ dag = DAG(
         "domain": "YOUR_DOMAIN",
         "access_token": "YOUR_ACCESS_TOKEN",
     },
-    schedule_interval=None,
+    schedule=None,
 )
 ```
 
@@ -83,11 +83,11 @@ Specify either `access_token` **or** `access_token_variable`, never both. If the
 | `variable_prefix`       | `str`  | no                     | `"iomete_"` | Prefix prepended to `access_token_variable` when looking up the Airflow Variable.                            |
 | `host_verify`           | `bool` | no                     | `True`      | Verify the TLS certificate of the IOMETE host.                                                               |
 
-`host`, `domain`, `access_token`, and `access_token_variable` are Jinja-templatable.
+`host`, `domain`, and `access_token_variable` are Jinja-templatable. `access_token` is **not** templatable: Airflow persists rendered template fields to its metadata database and exposes them in the UI, so templating raw tokens would leak them. Use `access_token_variable` to template the lookup name instead.
 
 ## Migrating from 2.x
 
-The 2.x plugin read connection details from four Airflow Variables (`iomete_host`, `iomete_access_token`, `iomete_domain`, `iomete_host_verify`). Those Variables are no longer read. Pass `host`, `domain`, `access_token` (and optionally `host_verify`) directly to `IometeOperator`. The `variable_prefix` parameter has been removed.
+The 2.x plugin read connection details from four Airflow Variables (`iomete_host`, `iomete_access_token`, `iomete_domain`, `iomete_host_verify`). Those Variables are no longer read. Pass `host`, `domain`, `access_token` (and optionally `host_verify`) directly to `IometeOperator`. The `variable_prefix` parameter still exists but its meaning has changed: it is now the prefix prepended to `access_token_variable` when resolving an Airflow Variable name (default `"iomete_"`).
 
 ## Resources
 For more information check:
