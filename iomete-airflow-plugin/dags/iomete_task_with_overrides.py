@@ -31,6 +31,6 @@ task = IometeOperator(
     config_override="{{ params.config_override }}",
     host="https://YOUR.iomete.host",
     domain="YOUR_DOMAIN",
-    access_token_variable="access_token",
+    access_token_variable="iomete_access_token",
     dag=dag,
 )

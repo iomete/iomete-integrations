@@ -41,7 +41,6 @@ class IometeOperator(BaseOperator):
         domain: Optional[str] = None,
         access_token: Optional[str] = None,
         access_token_variable: Optional[str] = None,
-        variable_prefix: str = "iomete_",
         host_verify: bool = True,
         config_override: Optional[Union[Dict, str]] = None,
         polling_period_seconds: int = 10,
@@ -62,7 +61,6 @@ class IometeOperator(BaseOperator):
         self.domain = domain
         self.access_token = access_token
         self.access_token_variable = access_token_variable
-        self.variable_prefix = variable_prefix
         self.host_verify = host_verify
         self.polling_period_seconds = polling_period_seconds
 
@@ -91,10 +89,11 @@ class IometeOperator(BaseOperator):
 
     def _resolve_access_token(self) -> str:
         if self.access_token_variable:
-            name = self.variable_prefix + self.access_token_variable
-            token = Variable.get(name, default_var=None)
+            token = Variable.get(self.access_token_variable, default_var=None)
             if not token:
-                raise AirflowException(f"Airflow Variable `{name}` is not set or empty.")
+                raise AirflowException(
+                    f"Airflow Variable `{self.access_token_variable}` is not set or empty."
+                )
             return token
         return self.access_token
 

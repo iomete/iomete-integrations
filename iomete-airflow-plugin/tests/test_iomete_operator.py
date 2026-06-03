@@ -97,13 +97,13 @@ class TestIometeOperator(unittest.TestCase):
 
     @patch("iomete_airflow_plugin.iomete_operator.Variable")
     @patch("iomete_airflow_plugin.iomete_operator.IometeHook")
-    def test_execute_resolves_variable_with_default_prefix(self, mock_hook_class, mock_variable):
+    def test_execute_resolves_access_token_from_variable(self, mock_hook_class, mock_variable):
         mock_hook = mock_hook_class.return_value
         mock_hook.submit_job_run.return_value = {"id": "run"}
         mock_hook.get_job_run.return_value = {"driverStatus": "COMPLETED"}
         mock_variable.get.return_value = "resolved_token_value"
 
-        operator = self._operator(access_token=None, access_token_variable="prod_token")
+        operator = self._operator(access_token=None, access_token_variable="iomete_prod_token")
 
         with patch("time.sleep", return_value=None):
             operator.execute({"ti": MagicMock()})
@@ -117,21 +117,9 @@ class TestIometeOperator(unittest.TestCase):
         )
 
     @patch("iomete_airflow_plugin.iomete_operator.Variable")
-    def test_execute_resolves_variable_with_custom_prefix(self, mock_variable):
-        mock_variable.get.return_value = "custom_value"
-        operator = self._operator(
-            access_token=None,
-            access_token_variable="prod_token",
-            variable_prefix="myorg_",
-        )
-        token = operator._resolve_access_token()
-        mock_variable.get.assert_called_with("myorg_prod_token", default_var=None)
-        self.assertEqual(token, "custom_value")
-
-    @patch("iomete_airflow_plugin.iomete_operator.Variable")
     def test_execute_raises_when_variable_missing(self, mock_variable):
         mock_variable.get.return_value = None
-        operator = self._operator(access_token=None, access_token_variable="missing_token")
+        operator = self._operator(access_token=None, access_token_variable="iomete_missing_token")
         with self.assertRaises(AirflowException) as ctx:
             operator._build_hook()
         self.assertIn("iomete_missing_token", str(ctx.exception))
@@ -139,7 +127,7 @@ class TestIometeOperator(unittest.TestCase):
     @patch("iomete_airflow_plugin.iomete_operator.Variable")
     def test_execute_raises_when_variable_empty(self, mock_variable):
         mock_variable.get.return_value = ""
-        operator = self._operator(access_token=None, access_token_variable="empty_token")
+        operator = self._operator(access_token=None, access_token_variable="iomete_empty_token")
         with self.assertRaises(AirflowException) as ctx:
             operator._build_hook()
         self.assertIn("iomete_empty_token", str(ctx.exception))
