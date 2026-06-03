@@ -4,7 +4,7 @@ from enum import Enum
 from typing import Dict, Optional, Union
 
 from airflow.exceptions import AirflowException
-from airflow.models import BaseOperator
+from airflow.models import BaseOperator, Variable
 
 from iomete_airflow_plugin.hook import IometeHook
 
@@ -18,7 +18,14 @@ class IometeOperator(BaseOperator):
     """
 
     # Used in airflow.models.BaseOperator
-    template_fields = ("job_id", "config_override")
+    template_fields = (
+        "job_id",
+        "config_override",
+        "host",
+        "domain",
+        "access_token",
+        "access_token_variable",
+    )
     template_ext = (".json",)
 
     # IOMETE blue color with white text
@@ -28,10 +35,15 @@ class IometeOperator(BaseOperator):
     def __init__(
         self,
         job_id: Optional[str] = None,
+        host: Optional[str] = None,
+        domain: Optional[str] = None,
+        access_token: Optional[str] = None,
+        access_token_variable: Optional[str] = None,
+        variable_prefix: str = "iomete_",
+        host_verify: bool = True,
         config_override: Optional[Union[Dict, str]] = None,
         polling_period_seconds: int = 10,
         do_xcom_push: bool = False,
-        variable_prefix: str = "iomete_",
         **kwargs,
     ):
         """
@@ -44,26 +56,57 @@ class IometeOperator(BaseOperator):
 
         self.run_id = ""
         self.job_id = job_id
-        self.polling_period_seconds = polling_period_seconds
-
+        self.host = host
+        self.domain = domain
+        self.access_token = access_token
+        self.access_token_variable = access_token_variable
         self.variable_prefix = variable_prefix
+        self.host_verify = host_verify
+        self.polling_period_seconds = polling_period_seconds
 
         if not config_override:
             self.config_override = {}
         else:
             self.config_override = config_override
 
-        if self.job_id is None:
+        if not self.job_id:
             raise AirflowException(
                 "Parameter `job_id` should be specified. "
                 "You can also specify the name of the IOMETE job in `job_id` field."
             )
+        if not self.host:
+            raise AirflowException("Parameter `host` should be specified.")
+        if not self.domain:
+            raise AirflowException("Parameter `domain` should be specified.")
+        if self.access_token and self.access_token_variable:
+            raise AirflowException(
+                "Specify only one of `access_token` or `access_token_variable`, not both."
+            )
+        if not self.access_token and not self.access_token_variable:
+            raise AirflowException(
+                "Either `access_token` or `access_token_variable` must be specified."
+            )
+
+    def _resolve_access_token(self) -> str:
+        if self.access_token_variable:
+            name = self.variable_prefix + self.access_token_variable
+            token = Variable.get(name, default_var=None)
+            if not token:
+                raise AirflowException(f"Airflow Variable `{name}` is not set or empty.")
+            return token
+        return self.access_token
+
+    def _build_hook(self) -> IometeHook:
+        return IometeHook(
+            host=self.host,
+            domain=self.domain,
+            access_token=self._resolve_access_token(),
+            host_verify=self.host_verify,
+        )
 
     def execute(self, context):
         self.log.info("Submitting IOMETE Job")
-        hook = IometeHook(
-            variable_prefix=self.variable_prefix,
-        )
+        hook = self._build_hook()
         dict_data = serialize_to_dict(self.config_override)
         self.run_id = hook.submit_job_run(self.job_id, dict_data)["id"]
         self.log.info(f"IOMETE Job submitted. Run ID {self.run_id}")
@@ -71,9 +114,7 @@ class IometeOperator(BaseOperator):
         self._monitor_app(hook, context)
 
     def on_kill(self):
-        hook = IometeHook(
-            variable_prefix=self.variable_prefix,
-        )
+        hook = self._build_hook()
         hook.cancel_job_run(self.job_id, self.run_id)
         self.log.info(
             "Task: %s with job id: %s was requested to be cancelled.",

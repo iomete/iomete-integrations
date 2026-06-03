@@ -18,32 +18,131 @@ from iomete_airflow_plugin.iomete_operator import (
 class TestIometeOperator(unittest.TestCase):
     def setUp(self):
         self.job_id = "test_job_id"
+        self.host = "https://test.iomete.com"
+        self.domain = "test_domain"
+        self.access_token = "test_token"
+        self.host_verify = False
         self.config_override = {"param1": "value1"}
         self.polling_period_seconds = 5
         self.do_xcom_push = True
-        self.variable_prefix = "iomete_test_"
         self.task_id = "test_task"
         self.dag = DAG(dag_id="test_dag", start_date=datetime.now())
 
-    def test_init_with_job_id(self):
+    def _operator(self, **overrides):
+        kwargs = dict(
+            job_id=self.job_id,
+            host=self.host,
+            domain=self.domain,
+            access_token=self.access_token,
+            task_id=self.task_id,
+        )
+        kwargs.update(overrides)
+        return IometeOperator(**kwargs)
+
+    def test_init_with_all_params(self):
         operator = IometeOperator(
             job_id=self.job_id,
+            host=self.host,
+            domain=self.domain,
+            access_token=self.access_token,
+            host_verify=self.host_verify,
             config_override=self.config_override,
             polling_period_seconds=self.polling_period_seconds,
             do_xcom_push=self.do_xcom_push,
-            variable_prefix=self.variable_prefix,
             task_id=self.task_id,
             dag=self.dag,
         )
         self.assertEqual(operator.job_id, self.job_id)
+        self.assertEqual(operator.host, self.host)
+        self.assertEqual(operator.domain, self.domain)
+        self.assertEqual(operator.access_token, self.access_token)
+        self.assertEqual(operator.host_verify, self.host_verify)
         self.assertEqual(operator.config_override, self.config_override)
         self.assertEqual(operator.polling_period_seconds, self.polling_period_seconds)
         self.assertEqual(operator.do_xcom_push, self.do_xcom_push)
-        self.assertEqual(operator.variable_prefix, self.variable_prefix)
 
-    def test_init_without_job_id(self):
-        with self.assertRaises(AirflowException):
-            IometeOperator(job_id=None, task_id=self.task_id)
+    def test_host_verify_defaults_to_true(self):
+        operator = self._operator()
+        self.assertTrue(operator.host_verify)
+
+    def test_init_without_job_id_raises(self):
+        with self.assertRaises(AirflowException) as ctx:
+            self._operator(job_id=None)
+        self.assertIn("job_id", str(ctx.exception))
+
+    def test_init_without_host_raises(self):
+        with self.assertRaises(AirflowException) as ctx:
+            self._operator(host=None)
+        self.assertIn("host", str(ctx.exception))
+
+    def test_init_without_domain_raises(self):
+        with self.assertRaises(AirflowException) as ctx:
+            self._operator(domain=None)
+        self.assertIn("domain", str(ctx.exception))
+
+    def test_init_without_access_token_raises(self):
+        with self.assertRaises(AirflowException) as ctx:
+            self._operator(access_token=None)
+        self.assertIn("Either `access_token` or `access_token_variable`", str(ctx.exception))
+
+    def test_init_rejects_both_access_token_and_variable(self):
+        with self.assertRaises(AirflowException) as ctx:
+            self._operator(access_token=self.access_token, access_token_variable="X")
+        self.assertIn("only one of", str(ctx.exception))
+
+    def test_init_rejects_neither_access_token_nor_variable(self):
+        with self.assertRaises(AirflowException) as ctx:
+            self._operator(access_token=None, access_token_variable=None)
+        self.assertIn("Either `access_token` or `access_token_variable`", str(ctx.exception))
+
+    @patch("iomete_airflow_plugin.iomete_operator.Variable")
+    @patch("iomete_airflow_plugin.iomete_operator.IometeHook")
+    def test_execute_resolves_variable_with_default_prefix(self, mock_hook_class, mock_variable):
+        mock_hook = mock_hook_class.return_value
+        mock_hook.submit_job_run.return_value = {"id": "run"}
+        mock_hook.get_job_run.return_value = {"driverStatus": "COMPLETED"}
+        mock_variable.get.return_value = "resolved_token_value"
+
+        operator = self._operator(access_token=None, access_token_variable="prod_token")
+
+        with patch("time.sleep", return_value=None):
+            operator.execute({"ti": MagicMock()})
+
+        mock_variable.get.assert_called_with("iomete_prod_token", default_var=None)
+        mock_hook_class.assert_called_with(
+            host=self.host,
+            domain=self.domain,
+            access_token="resolved_token_value",
+            host_verify=True,
+        )
+
+    @patch("iomete_airflow_plugin.iomete_operator.Variable")
+    def test_execute_resolves_variable_with_custom_prefix(self, mock_variable):
+        mock_variable.get.return_value = "custom_value"
+        operator = self._operator(
+            access_token=None,
+            access_token_variable="prod_token",
+            variable_prefix="myorg_",
+        )
+        token = operator._resolve_access_token()
+        mock_variable.get.assert_called_with("myorg_prod_token", default_var=None)
+        self.assertEqual(token, "custom_value")
+
+    @patch("iomete_airflow_plugin.iomete_operator.Variable")
+    def test_execute_raises_when_variable_missing(self, mock_variable):
+        mock_variable.get.return_value = None
+        operator = self._operator(access_token=None, access_token_variable="missing_token")
+        with self.assertRaises(AirflowException) as ctx:
+            operator._build_hook()
+        self.assertIn("iomete_missing_token", str(ctx.exception))
+
+    @patch("iomete_airflow_plugin.iomete_operator.Variable")
+    def test_execute_raises_when_variable_empty(self, mock_variable):
+        mock_variable.get.return_value = ""
+        operator = self._operator(access_token=None, access_token_variable="empty_token")
+        with self.assertRaises(AirflowException) as ctx:
+            operator._build_hook()
+        self.assertIn("iomete_empty_token", str(ctx.exception))
 
     @patch("iomete_airflow_plugin.iomete_operator.IometeHook")
     def test_execute_successful_job(self, mock_hook_class):
@@ -56,13 +155,19 @@ class TestIometeOperator(unittest.TestCase):
             {"driverStatus": "COMPLETED"},
         ]
 
-        operator = IometeOperator(job_id=self.job_id, task_id=self.task_id, do_xcom_push=True)
+        operator = self._operator(do_xcom_push=True)
 
         context = {"ti": MagicMock()}
 
         with patch("time.sleep", return_value=None):
             operator.execute(context)
 
+        mock_hook_class.assert_called_with(
+            host=self.host,
+            domain=self.domain,
+            access_token=self.access_token,
+            host_verify=True,
+        )
         mock_hook.submit_job_run.assert_called_once_with(self.job_id, {})
         self.assertEqual(operator.run_id, "test_run_id")
         context["ti"].xcom_push.assert_any_call(key=XCOM_JOB_ID_KEY, value=self.job_id)
@@ -78,7 +183,7 @@ class TestIometeOperator(unittest.TestCase):
             {"driverStatus": "FAILED"},
         ]
 
-        operator = IometeOperator(job_id=self.job_id, task_id=self.task_id)
+        operator = self._operator()
 
         with patch("time.sleep", return_value=None):
             with self.assertRaises(AirflowException) as context_exc:
@@ -90,10 +195,16 @@ class TestIometeOperator(unittest.TestCase):
     def test_on_kill(self, mock_hook_class):
         mock_hook = mock_hook_class.return_value
 
-        operator = IometeOperator(job_id=self.job_id, task_id=self.task_id)
+        operator = self._operator()
         operator.run_id = "test_run_id"
         operator.on_kill()
 
+        mock_hook_class.assert_called_with(
+            host=self.host,
+            domain=self.domain,
+            access_token=self.access_token,
+            host_verify=True,
+        )
         mock_hook.cancel_job_run.assert_called_once_with(self.job_id, "test_run_id")
 
 
@@ -134,17 +245,12 @@ class TestApplicationStateType(unittest.TestCase):
 
 class TestIometeHook(unittest.TestCase):
     @patch("iomete_airflow_plugin.hook.SparkJobApiClient")
-    @patch("iomete_airflow_plugin.hook.Variable")
-    def test_hook_passes_domain_to_client(self, mock_variable, mock_client_class):
-        mock_variable.get.side_effect = lambda key, *args, **kwargs: {
-            "iomete_host": "https://test.iomete.com",
-            "iomete_access_token": "test_token",
-            "iomete_domain": "test_domain",
-            "iomete_host_verify": "True",
-        }.get(key, *args)
-
-        hook = IometeHook.__new__(IometeHook)
-        IometeHook.__init__(hook)
+    def test_hook_passes_params_to_client(self, mock_client_class):
+        IometeHook(
+            host="https://test.iomete.com",
+            domain="test_domain",
+            access_token="test_token",
+        )
 
         mock_client_class.assert_called_once_with(
             host="https://test.iomete.com",
@@ -154,43 +260,20 @@ class TestIometeHook(unittest.TestCase):
         )
 
     @patch("iomete_airflow_plugin.hook.SparkJobApiClient")
-    @patch("iomete_airflow_plugin.hook.Variable")
-    def test_hook_with_custom_prefix(self, mock_variable, mock_client_class):
-        mock_variable.get.side_effect = lambda key, *args, **kwargs: {
-            "custom_host": "https://custom.iomete.com",
-            "custom_access_token": "custom_token",
-            "custom_domain": "custom_domain",
-            "custom_host_verify": "False",
-        }.get(key, *args)
-
-        hook = IometeHook.__new__(IometeHook)
-        IometeHook.__init__(hook, variable_prefix="custom_")
-
-        mock_client_class.assert_called_once_with(
-            host="https://custom.iomete.com",
-            api_key="custom_token",
-            domain="custom_domain",
-            verify=False,
+    def test_hook_respects_host_verify_false(self, mock_client_class):
+        IometeHook(
+            host="https://test.iomete.com",
+            domain="test_domain",
+            access_token="test_token",
+            host_verify=False,
         )
 
-    @patch("iomete_airflow_plugin.hook.SparkJobApiClient")
-    @patch("iomete_airflow_plugin.hook.Variable")
-    def test_hook_missing_domain_raises_error(self, mock_variable, mock_client_class):
-        def side_effect(key, *args, **kwargs):
-            values = {
-                "iomete_host": "https://test.iomete.com",
-                "iomete_access_token": "test_token",
-                "iomete_host_verify": "True",
-            }
-            if key in values:
-                return values[key]
-            raise KeyError(f"Variable {key} does not exist")
-
-        mock_variable.get.side_effect = side_effect
-
-        with self.assertRaises(KeyError):
-            hook = IometeHook.__new__(IometeHook)
-            IometeHook.__init__(hook)
+        mock_client_class.assert_called_once_with(
+            host="https://test.iomete.com",
+            api_key="test_token",
+            domain="test_domain",
+            verify=False,
+        )
 
 
 if __name__ == "__main__":

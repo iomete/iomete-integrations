@@ -1,6 +1,6 @@
 [project]
 name = "iomete-airflow-plugin"
-version = "2.0.2"
+version = "3.0.0"
 description = "An Airflow plugin for interacting with IOMETE platform."
 authors = [
     {name = "IOMETE"}
