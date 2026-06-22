@@ -1,0 +1,43 @@
+name: PR Check for iomete-airflow-plugin
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'iomete-airflow-plugin/**'
+      - '.github/workflows/iomete-airflow-plugin-pr-check.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false  # Want the full picture across Airflow versions, not just the first failure.
+      matrix:
+        # Lowest supported Airflow (customer on 2.10.x) and current 3.x. Keep in sync with the
+        # `apache-airflow` floor/ceiling in iomete-airflow-plugin/pyproject.toml.
+        airflow-version: [ '2.10.5', '3.2.1' ]
+        python-version: [ '3.12' ]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Airflow ${{ matrix.airflow-version }} (constrained) + plugin + pytest
+        working-directory: iomete-airflow-plugin
+        run: |
+          python -m pip install --upgrade pip
+          pip install "apache-airflow==${{ matrix.airflow-version }}" \
+            --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-${{ matrix.airflow-version }}/constraints-${{ matrix.python-version }}.txt"
+          # Installing the plugin keeps the pinned Airflow (it satisfies the >=2.10.5,<4 floor).
+          pip install .
+          pip install pytest
+          pip check
+
+      - name: Run tests
+        working-directory: iomete-airflow-plugin
+        run: python -m pytest tests/ -q

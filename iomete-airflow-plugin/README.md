@@ -4,6 +4,11 @@
 
 This Plugin helps to trigger/run Spark Jobs created in IOMETE platform.
 
+## Requirements
+
+- Apache Airflow `>=2.10.5, <4.0.0`
+- Python `3.10` – `3.12`
+
 ## Installation
 
 This plugin could be easily installed with `pip`. Just run the following in your aiflow server:
