@@ -13,10 +13,16 @@ jobs:
     strategy:
       fail-fast: false  # Want the full picture across Airflow versions, not just the first failure.
       matrix:
-        # Lowest supported Airflow (customer on 2.10.x) and current 3.x. Keep in sync with the
-        # `apache-airflow` floor/ceiling in iomete-airflow-plugin/pyproject.toml.
-        airflow-version: [ '2.10.5', '3.2.1' ]
-        python-version: [ '3.12' ]
+        # Keep in sync with the apache-airflow floor/ceiling and requires-python in pyproject.toml.
+        # Pair each Airflow with a Python it actually supports: Airflow 2.10.x tops out at 3.12;
+        # the default Airflow 3.2.1 image ships Python 3.13.
+        include:
+          - airflow-version: '2.10.5'
+            python-version: '3.12'
+          - airflow-version: '3.2.1'
+            python-version: '3.12'
+          - airflow-version: '3.2.1'
+            python-version: '3.13'
 
     steps:
       - name: Checkout code

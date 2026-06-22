@@ -9,7 +9,7 @@ keywords = ["iomete", "airflow", "airflow plugin"]
 packages = [{ include = "iomete_airflow_plugin" }]
 license = "Apache Software License 2.0"
 readme = "README.md"
-requires-python = ">=3.10, <3.13"
+requires-python = ">=3.10, <3.14"
 dependencies = [
     "iomete-sdk (>=3.1.0,<4.0.0)",
     "requests (>=2.33.0)",          # CVE-2026-25645
