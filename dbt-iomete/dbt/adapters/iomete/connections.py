@@ -1,16 +1,20 @@
 from contextlib import contextmanager
 
-from dbt.adapters.contracts.connection import Credentials, ConnectionState, AdapterResponse
+from dbt.adapters.contracts.connection import (
+    AdapterResponse,
+    ConnectionState,
+    Credentials,
+)
 from dbt.adapters.sql import SQLConnectionManager
 from dbt.adapters.events.logging import AdapterLogger
 from dbt.adapters.exceptions import FailedToConnectError
 from dbt.exceptions import DbtProfileError
-from dbt_common.exceptions import DbtRuntimeError, DbtDatabaseError
+from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.dataclass_schema import ValidationError
 from dbt_common.utils.encoding import DECIMALS
 
-from TCLIService.ttypes import TOperationState as ThriftState
-from pyhive import hive
+from sqlalchemy import create_engine
+from sqlalchemy.engine import URL
 
 from datetime import datetime
 
@@ -33,10 +37,13 @@ class SparkCredentials(Credentials):
     host: Optional[str] = None
     port: int = 443
     dataplane: Optional[str] = None
+    data_plane: Optional[str] = None
     domain: Optional[str] = None
     lakehouse: Optional[str] = None
+    cluster: Optional[str] = None
     user: Optional[str] = None
     token: Optional[str] = None
+    max_msg_size: int = 134217728
     connect_retries: int = 0
     connect_timeout: int = 120
     server_side_parameters: Dict[str, Any] = field(default_factory=dict)
@@ -44,6 +51,7 @@ class SparkCredentials(Credentials):
 
     _ALIASES = {
         'catalog': 'database',
+        'data_plane': 'dataplane',
     }
 
     def __post_init__(self):
@@ -55,7 +63,8 @@ class SparkCredentials(Credentials):
         if "." in (self.schema or ""):
             raise DbtRuntimeError(
                 f"The schema should not contain '.': {self.schema}\n"
-                "If you are trying to set a catalog, please use `catalog` instead.\n"
+                "If you are trying to set a catalog, please use "
+                "`catalog` instead.\n"
             )
         return
 
@@ -69,13 +78,33 @@ class SparkCredentials(Credentials):
 
     @property
     def unique_field(self):
-        return f"{self.scheme}://{self.host}:{self.port}/dataplane/{self.dataplane}/lakehouse/{self.lakehouse}"
+        return (
+            f"{self.scheme}://{self.host}:{self.port}"
+            f"/dataplane/{self.data_plane_name}"
+            f"/cluster/{self.cluster_name}"
+        )
 
     def _connection_keys(self):
-        return 'host', 'port','dataplane', 'lakehouse', 'database', 'schema'
+        return (
+            'host',
+            'port',
+            'dataplane',
+            'cluster',
+            'lakehouse',
+            'database',
+            'schema',
+        )
+
+    @property
+    def cluster_name(self):
+        return self.cluster or self.lakehouse
+
+    @property
+    def data_plane_name(self):
+        return self.dataplane or self.data_plane
 
 
-class PyhiveConnectionWrapper(object):
+class IometeSqlAlchemyConnectionWrapper(object):
     """Wrap a Spark connection in a way that no-ops transactions"""
 
     # https://forums.databricks.com/questions/2157/in-apache-spark-sql-can-we-roll-back-the-transacti.html  # noqa
@@ -90,8 +119,6 @@ class PyhiveConnectionWrapper(object):
 
     def cancel(self):
         if self._cursor:
-            # Handle bad response in the pyhive lib when
-            # the connection is cancelled
             try:
                 self._cursor.cancel()
             except EnvironmentError as exc:
@@ -101,8 +128,6 @@ class PyhiveConnectionWrapper(object):
 
     def close(self):
         if self._cursor:
-            # Handle bad response in the pyhive lib when
-            # the connection is cancelled
             try:
                 self._cursor.close()
             except EnvironmentError as exc:
@@ -121,57 +146,46 @@ class PyhiveConnectionWrapper(object):
         if sql.strip().endswith(";"):
             sql = sql.strip()[:-1]
 
-        # Reaching into the private enumeration here is bad form,
-        # but there doesn't appear to be any way to determine that
-        # a query has completed executing from the pyhive public API.
-        # We need to use an async query + poll here, otherwise our
-        # request may be dropped after ~5 minutes by the thrift server
-        STATE_PENDING = [
-            ThriftState.INITIALIZED_STATE,
-            ThriftState.RUNNING_STATE,
-            ThriftState.PENDING_STATE,
-        ]
-
-        STATE_SUCCESS = [
-            ThriftState.FINISHED_STATE,
-        ]
-
+        is_write = self._is_write_statement(sql)
         if bindings is not None:
-            bindings = [self._fix_binding(binding) for binding in bindings]
+            bindings = tuple(
+                self._fix_binding(binding) for binding in bindings
+            )
+            if is_write and hasattr(self._cursor, 'executemany'):
+                self._cursor.executemany(sql, [bindings])
+            else:
+                self._cursor.execute(sql, bindings)
+        else:
+            self._cursor.execute(sql)
 
-        self._cursor.execute(sql, bindings, async_=True)
-        poll_state = self._cursor.poll()
-        state = poll_state.operationState
+        if is_write:
+            try:
+                self._cursor.fetchall()
+            except Exception as exc:
+                logger.debug(
+                    "Ignoring error while draining cursor: {}".format(exc)
+                )
 
-        while state in STATE_PENDING:
-            logger.debug("Poll status: {}, sleeping".format(state))
-
-            poll_state = self._cursor.poll()
-            state = poll_state.operationState
-
-        # If an errorMessage is present, then raise a database exception
-        # with that exact message. If no errorMessage is present, the
-        # query did not necessarily succeed: check the state against the
-        # known successful states, raising an error if the query did not
-        # complete in a known good state. This can happen when queries are
-        # cancelled, for instance. The errorMessage will be None, but the
-        # state of the query will be "cancelled". By raising an exception
-        # here, we prevent dbt from showing a status of OK when the query
-        # has in fact failed.
-        if poll_state.errorMessage:
-            logger.debug("Poll response: {}".format(poll_state))
-            logger.debug("Poll status: {}".format(state))
-            raise DbtDatabaseError(poll_state.errorMessage)
-
-        elif state not in STATE_SUCCESS:
-            status_type = ThriftState._VALUES_TO_NAMES.get(
-                state,
-                'Unknown<{!r}>'.format(state))
-
-            raise DbtDatabaseError(
-                "Query failed with status: {}".format(status_type))
-
-        logger.debug("Poll status: {}, query complete".format(state))
+    @classmethod
+    def _is_write_statement(cls, sql):
+        tokens = sql.lstrip().split(None, 1)
+        if not tokens:
+            return False
+        first_token = tokens[0].lower()
+        return first_token in {
+            'alter',
+            'cache',
+            'create',
+            'delete',
+            'drop',
+            'insert',
+            'merge',
+            'refresh',
+            'truncate',
+            'uncache',
+            'update',
+            'use',
+        }
 
     @classmethod
     def _fix_binding(cls, value):
@@ -203,9 +217,9 @@ class SparkConnectionManager(SQLConnectionManager):
             if len(exc.args) == 0:
                 raise
 
-            thrift_resp = exc.args[0]
-            if hasattr(thrift_resp, 'status'):
-                msg = thrift_resp.status.errorMessage
+            response = exc.args[0]
+            if hasattr(response, 'status'):
+                msg = response.status.errorMessage
                 raise DbtRuntimeError(msg)
             else:
                 raise DbtRuntimeError(str(exc))
@@ -238,11 +252,15 @@ class SparkConnectionManager(SQLConnectionManager):
     def validate_creds(cls, creds, required):
         for key in required:
             if not hasattr(creds, key):
-                raise DbtProfileError(f"The config '{key}' is required to connect to iomete")
+                raise DbtProfileError(
+                    f"The config '{key}' is required to connect to iomete"
+                )
 
             if creds.__dict__[key] is None:
                 raise DbtProfileError(
-                    f"The config '{key}' is set to none! This config is required to connect to iomete")
+                    f"The config '{key}' is set to none! This config is "
+                    "required to connect to iomete"
+                )
 
     @classmethod
     def open(cls, connection):
@@ -255,26 +273,36 @@ class SparkConnectionManager(SQLConnectionManager):
 
         for i in range(1 + creds.connect_retries):
             try:
-                cls.validate_creds(creds, ['host', 'port', 'user', 'token', 'lakehouse', 'dataplane'])
-                conn = hive.connect(
-                    scheme=creds.scheme,
-                    host=creds.host,
-                    port=creds.port,
-                    lakehouse=creds.lakehouse,
-                    database=creds.database,
-                    username=creds.user,
-                    password=creds.token,
-                    data_plane=creds.dataplane
+                cls.validate_creds(
+                    creds,
+                    ['host', 'port', 'user', 'token', 'schema'],
                 )
-                handle = PyhiveConnectionWrapper(conn)
+                if creds.cluster_name is None:
+                    raise DbtProfileError(
+                        "One of the configs 'cluster' or 'lakehouse' is "
+                        "required to connect to iomete"
+                    )
+                if creds.data_plane_name is None:
+                    raise DbtProfileError(
+                        "One of the configs 'data_plane' or 'dataplane' is "
+                        "required to connect to iomete"
+                    )
+
+                conn = create_engine(
+                    cls._connection_url(creds)
+                ).raw_connection()
+                handle = IometeSqlAlchemyConnectionWrapper(conn)
                 break
             except Exception as e:
                 exc = e
                 if isinstance(e, EOFError):
                     # The user almost certainly has invalid credentials.
                     # Perhaps a password is invalid, or something
-                    msg = 'Failed to connect. Make sure lakehouse is in non-terminated state ' \
-                          'and credentials (user/password) are correct'
+                    msg = (
+                        'Failed to connect. Make sure cluster is in '
+                        'non-terminated state and credentials (user/password) '
+                        'are correct'
+                    )
                     raise FailedToConnectError(msg) from e
                 retryable_message = _is_retryable_error(e)
                 if retryable_message and creds.connect_retries > 0:
@@ -297,7 +325,8 @@ class SparkConnectionManager(SQLConnectionManager):
                     time.sleep(creds.connect_timeout)
                 else:
                     raise FailedToConnectError(
-                        'Failed to connect! Make sure host, port, protocol (https/http) is correct!'
+                        'Failed to connect! Make sure host, port, protocol '
+                        '(https/http) is correct!'
                     ) from e
         else:
             raise exc
@@ -305,6 +334,23 @@ class SparkConnectionManager(SQLConnectionManager):
         connection.handle = handle
         connection.state = ConnectionState.OPEN
         return connection
+
+    @classmethod
+    def _connection_url(cls, creds):
+        return URL.create(
+            "iomete",
+            username=creds.user,
+            password=creds.token,
+            host=creds.host,
+            port=creds.port,
+            database=f"{creds.database}/{creds.schema}",
+            query={
+                "cluster": creds.cluster_name,
+                "data_plane": creds.data_plane_name,
+                "tls": str(creds.https).lower(),
+                "max_msg_size": str(creds.max_msg_size),
+            },
+        )
 
 
 def _is_retryable_error(exc: Exception) -> Optional[str]:
