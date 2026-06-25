@@ -70,7 +70,7 @@ setup(
     long_description_content_type="text/markdown",
     author="iomete",
     author_email="support@iomete.com",
-    url="https://github.com/iomete/dbt-iomete",
+    url="https://github.com/iomete/iomete-integrations/tree/main/dbt-iomete",
     packages=find_namespace_packages(include=["dbt", "dbt.*"]),
     include_package_data=True,
     install_requires=[
