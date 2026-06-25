@@ -1,3 +1,4 @@
+import os
 import requests
 import json
 from typing import Optional
@@ -5,10 +6,30 @@ from dbt_common.exceptions import CompilationError
 from requests.adapters import HTTPAdapter
 from urllib3 import Retry
 
+# Per-request timeout (seconds) for schema-service HTTP calls. Large catalogs can
+# take well over the old 10s to return metadata, so default generously. Overridable
+# via env var for the rare case 120s is still too short — kept off the profile schema
+# since it's an internal transport detail, not user-facing config.
+DEFAULT_SCHEMA_TIMEOUT = 120
+SCHEMA_TIMEOUT_ENV_VAR = "IOMETE_DBT_SCHEMA_TIMEOUT"
+
+
+def _resolve_timeout() -> int:
+    raw = os.environ.get(SCHEMA_TIMEOUT_ENV_VAR)
+    if raw is None:
+        return DEFAULT_SCHEMA_TIMEOUT
+    try:
+        return int(raw)
+    except ValueError:
+        raise CompilationError(
+            f"{SCHEMA_TIMEOUT_ENV_VAR} must be an integer number of seconds, got: {raw!r}"
+        )
+
 
 class SchemaService:
     def __init__(self, credentials):
         self.credentials = credentials
+        self.timeout = _resolve_timeout()
 
         adapter = HTTPAdapter(max_retries=Retry(total=3, backoff_factor=0.5, allowed_methods=None,
                                                 status_forcelist=[429, 500, 502, 503, 504]))
@@ -31,7 +52,7 @@ class SchemaService:
         try:
             namespaces = f"{self.credentials.scheme}://{self.credentials.host}:{self.credentials.port}/api/v1/domains/{self.credentials.domain}/schema/catalogs/{database}/namespaces"
 
-            response = self.session.get(f"{namespaces}/{path}", timeout=10,
+            response = self.session.get(f"{namespaces}/{path}", timeout=self.timeout,
                                         headers={"X-API-TOKEN": self.credentials.token})
             if response.status_code == 404:
                 return None
