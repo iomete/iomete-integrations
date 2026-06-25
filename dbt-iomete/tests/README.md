@@ -70,3 +70,8 @@ tox -e functional
 ```shell
 tox -e unit
 ```
+
+> TODO: The functional and integration suites are slow — even run in parallel they take ~15 minutes
+> end to end. That is too long to gate every PR and the release process on. We should look into
+> reducing this (e.g. trimming redundant cases, sharing setup/fixtures, keeping compute warm, or
+> running the full suite on a schedule rather than per-PR).
