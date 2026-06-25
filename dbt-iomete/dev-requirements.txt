@@ -16,6 +16,7 @@ ipdb
 pytest-xdist>=2.1.0,<3
 flaky>=3.5.3,<4
 pytest-csv
+pytest-dotenv>=0.5.2
 twine
 
 # Test requirements

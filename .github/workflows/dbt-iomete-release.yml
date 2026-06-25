@@ -3,9 +3,8 @@ name: RELEASE for dbt-iomete
 on:
   push:
     tags:
-      - v*  # Will only run this workflow for tags starting with v, e.g. v2.0.0...
-    paths:
-      - 'dbt-iomete/**'
+      # Package-scoped tags, e.g. dbt-iomete-v1.8.0
+      - 'dbt-iomete-v*'
 
 jobs:
   package-and-publish:
@@ -13,6 +12,11 @@ jobs:
       # These env variables are needed to publish code to PyPI
       PYPI_TOKEN: '${{ secrets.PYPI_TOKEN }}'
       REF: '${{ github.ref }}'
+    defaults:
+      run:
+        # Package lives in dbt-iomete/ after the monorepo merge; the unprefixed
+        # commands below (pip install, tox, setup.py) run from there.
+        working-directory: dbt-iomete
     runs-on: ${{ matrix.os }}  # This is defined by the strategy below
     strategy:
       matrix:
@@ -58,26 +62,26 @@ jobs:
           tox -e unit
       - name: Run Integration tests
         env:
-          DBT_IOMETE_HOST: dev.iomete.cloud
+          DBT_IOMETE_HOST: release.iomete.cloud
           DBT_IOMETE_PORT: 443
           DBT_IOMETE_HTTPS: true
           DBT_IOMETE_LAKEHOUSE: dbt
           DBT_IOMETE_USER_NAME: admin
           DBT_IOMETE_DOMAIN: default
           DBT_IOMETE_TOKEN: ${{ secrets.DBT_IOMETE_TOKEN }}
-          DBT_IOMETE_DATAPLANE: spark-resources
+          DBT_IOMETE_DATAPLANE: spark-resources-1
         run: |
           tox -e integration-iomete
       - name: Run Functional tests
         env:
-          DBT_IOMETE_HOST: dev.iomete.cloud
+          DBT_IOMETE_HOST: release.iomete.cloud
           DBT_IOMETE_PORT: 443
           DBT_IOMETE_HTTPS: true
           DBT_IOMETE_LAKEHOUSE: dbt
           DBT_IOMETE_USER_NAME: admin
           DBT_IOMETE_DOMAIN: default
           DBT_IOMETE_TOKEN: ${{ secrets.DBT_IOMETE_TOKEN }}
-          DBT_IOMETE_DATAPLANE: spark-resources
+          DBT_IOMETE_DATAPLANE: spark-resources-1
         run: |
           tox -e functional
       - name: Clean up dist

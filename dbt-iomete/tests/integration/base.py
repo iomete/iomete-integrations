@@ -17,14 +17,16 @@ from unittest.mock import patch
 from dbt.cli.main import dbtRunner
 from dbt.deprecations import reset_deprecations
 from dbt.adapters.factory import get_adapter, reset_adapters, register_adapter
-from dbt.clients.jinja import template_cache
+from dbt.mp_context import get_mp_context
+from dbt.clients import jinja
 from dbt.config import RuntimeConfig
 from dbt.context import providers
 from dbt.logger import log_manager
-from dbt.events.functions import (
-    capture_stdout_logs, stop_capture_stdout_logs, setup_event_logger
+from dbt.events.logging import setup_event_logger
+from dbt_common.events.functions import (
+    capture_stdout_logs, stop_capture_stdout_logs
 )
-from dbt.events import AdapterLogger
+from dbt.adapters.events.logging import AdapterLogger
 from dbt.contracts.graph.manifest import Manifest
 
 logger = AdapterLogger("iomete")
@@ -81,6 +83,9 @@ class TestArgs:
         self.single_threaded = False
         self.profiles_dir = None
         self.project_dir = None
+        # flags read during manifest parsing in dbt 1.8+
+        self.DEBUG = False
+        self.REQUIRE_RESOURCE_NAMES_WITHOUT_SPACES = False
         self.__dict__.update(kwargs)
 
 
@@ -90,17 +95,11 @@ def _pytest_test_name():
 
 def _pytest_get_test_root():
     test_path = _pytest_test_name().split('::')[0]
-    relative_to = INITIAL_ROOT
-    head = os.path.relpath(test_path, relative_to)
-
-    path_parts = []
-    while head:
-        head, tail = os.path.split(head)
-        path_parts.append(tail)
-    path_parts.reverse()
+    parts = os.path.normpath(test_path).split(os.sep)
+    idx = parts.index('tests')
     # dbt tests are of the form 'tests/integration/suite_name'
-    target = os.path.join(*path_parts[:3])  # try to not hard code this
-    return os.path.join(relative_to, target)
+    target = os.path.join(*parts[idx:idx + 3])
+    return os.path.join(INITIAL_ROOT, target)
 
 
 def _really_makedirs(path):
@@ -241,7 +240,7 @@ class DBTIntegrationTest(unittest.TestCase):
 
         self._created_schemas = set()
         reset_deprecations()
-        template_cache.clear()
+        jinja._render_cache.clear()
 
         self.use_profile()
         self.use_default_project()
@@ -316,7 +315,7 @@ class DBTIntegrationTest(unittest.TestCase):
         set_from_args(Namespace(**kwargs), None)
         config = RuntimeConfig.from_args(TestArgs(kwargs))
 
-        register_adapter(config)
+        register_adapter(config, get_mp_context())
         adapter = get_adapter(config)
         adapter.cleanup_connections()
         self.adapter_type = adapter.type()
@@ -333,7 +332,7 @@ class DBTIntegrationTest(unittest.TestCase):
         # get any current run adapter and clean up its connections before we
         # reset them. It'll probably be different from ours because
         # handle_and_check() calls reset_adapters().
-        register_adapter(self.config)
+        register_adapter(self.config, get_mp_context())
         adapter = get_adapter(self.config)
         if adapter is not self.adapter:
             adapter.cleanup_connections()
@@ -535,6 +534,16 @@ class DBTIntegrationTest(unittest.TestCase):
         with patch.object(providers, 'get_adapter', return_value=self.adapter):
             with self.adapter.connection_named(name):
                 conn = self.adapter.connections.get_thread_connection()
+                # dbt 1.8+ requires a macro resolver for execute_macro; run_dbt
+                # uses its own adapter, so attach one to self.adapter once.
+                if self.adapter.get_macro_resolver() is None:
+                    from dbt.parser.manifest import ManifestLoader
+                    from dbt.context.providers import generate_runtime_macro_context
+                    from dbt.tracking import do_not_track
+                    do_not_track()  # set active_user; parse runs outside dbtRunner
+                    manifest = ManifestLoader.get_full_manifest(self.config)
+                    self.adapter.set_macro_resolver(manifest)
+                    self.adapter.set_macro_context_generator(generate_runtime_macro_context)
                 yield conn
 
     def get_relation_columns(self, relation):
