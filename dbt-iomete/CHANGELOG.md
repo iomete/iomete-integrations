@@ -1,3 +1,9 @@
+## dbt-iomete 1.8.0 (Jun 25, 2026)
+- Upgraded `dbt-core` from 1.7 to 1.8 (1.8.9) and adopted the new `dbt-adapters` (>=1.10.0) package that 1.8 split out of dbt-core; bumped `dbt-common` to >=1.13.0.
+- Bumped `protobuf` to 5.29.6, resolving CVE-2026-0994.
+- Dropped support for Python 3.7 and 3.8; the adapter now requires Python 3.9+ and supports up to Python 3.12.
+- Fixed the integration and functional test suites to work with dbt 1.8.
+
 ## dbt-iomete 1.7.9 (May 8, 2025)
 - Added support for table properties via `tblproperties` config.
 - Added support for predicates in incremental models via `incremental_predicates` config.

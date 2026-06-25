@@ -43,7 +43,10 @@ def _get_plugin_version_dict():
 
 def _get_plugin_version():
     parts = _get_plugin_version_dict()
-    return "{major}.{minor}.{patch}{prekind}{pre}".format(**parts)
+    version = "{major}.{minor}.{patch}".format(**parts)
+    if parts["prekind"]:
+        version += parts["prekind"] + parts["pre"]
+    return version
 
 
 # require a compatible minor version (~=), prerelease if this is a prerelease
@@ -55,7 +58,7 @@ def _get_dbt_core_version():
 
 
 package_name = "dbt-iomete"
-package_version = "1.8.0"
+package_version = _get_plugin_version()
 dbt_core_version = _get_dbt_core_version()
 description = """The Apache Spark (IOMETE) adapter plugin for dbt"""
 
@@ -67,7 +70,7 @@ setup(
     long_description_content_type="text/markdown",
     author="iomete",
     author_email="support@iomete.com",
-    url="https://github.com/iomete/dbt-iomete",
+    url="https://github.com/iomete/iomete-integrations/tree/main/dbt-iomete",
     packages=find_namespace_packages(include=["dbt", "dbt.*"]),
     include_package_data=True,
     install_requires=[

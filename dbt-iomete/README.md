@@ -14,8 +14,8 @@
   />
 </p>
 <p align="center">
-  <a href="https://github.com/iomete/dbt-iomete/actions/workflows/release.yml">
-    <img src="https://github.com/iomete/dbt-iomete/actions/workflows/release.yml/badge.svg?event=push" alt="Release Badge"/>
+  <a href="https://github.com/iomete/iomete-integrations/actions/workflows/dbt-iomete-release.yml">
+    <img src="https://github.com/iomete/iomete-integrations/actions/workflows/dbt-iomete-release.yml/badge.svg?event=push" alt="Release Badge"/>
   </a>
 </p>
 
@@ -40,7 +40,7 @@ pip install dbt-iomete
 Alternatively, you can install the package from GitHub with:
 
 ```shell
-pip install git+https://github.com/iomete/dbt-iomete.git
+pip install "git+https://github.com/iomete/iomete-integrations.git#subdirectory=dbt-iomete"
 ```
 
 ### Profile Setup
