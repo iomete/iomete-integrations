@@ -19,7 +19,6 @@ def dbt_profile_target(request):
         'port': int(os.getenv("DBT_IOMETE_PORT")),
         'dataplane': os.getenv("DBT_IOMETE_DATAPLANE"),
         'threads': 10,
-        # lakehouse auto-suspends; retry so a cold connection can wake it
         'connect_retries': 5,
         'connect_timeout': 60,
     }
