@@ -6,10 +6,6 @@ from dbt_common.exceptions import CompilationError
 from requests.adapters import HTTPAdapter
 from urllib3 import Retry
 
-# Per-request timeout (seconds) for schema-service HTTP calls. Large catalogs can
-# take well over the old 10s to return metadata, so default generously. Overridable
-# via env var for the rare case 120s is still too short — kept off the profile schema
-# since it's an internal transport detail, not user-facing config.
 DEFAULT_SCHEMA_TIMEOUT = 120
 SCHEMA_TIMEOUT_ENV_VAR = "IOMETE_DBT_SCHEMA_TIMEOUT"
 
