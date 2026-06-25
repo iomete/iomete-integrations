@@ -4,7 +4,7 @@ from unittest import mock
 from dbt_common.exceptions import CompilationError
 from dbt.adapters.iomete.schema_service import (
     SchemaService,
-    DEFAULT_SCHEMA_TIMEOUT,
+    DEFAULT_SCHEMA_TIMEOUT_SECONDS,
     SCHEMA_TIMEOUT_ENV_VAR,
 )
 
@@ -24,7 +24,7 @@ class TestSchemaServiceTimeout(unittest.TestCase):
     def test_defaults_to_120_when_env_unset(self):
         with mock.patch.dict("os.environ", {}, clear=True):
             service = SchemaService(_credentials())
-        self.assertEqual(service.timeout, DEFAULT_SCHEMA_TIMEOUT)
+        self.assertEqual(service.timeout, DEFAULT_SCHEMA_TIMEOUT_SECONDS)
         self.assertEqual(service.timeout, 120)
 
     def test_env_var_overrides_default(self):
@@ -37,6 +37,11 @@ class TestSchemaServiceTimeout(unittest.TestCase):
             with self.assertRaises(CompilationError):
                 SchemaService(_credentials())
 
+    def test_non_positive_env_var_raises(self):
+        with mock.patch.dict("os.environ", {SCHEMA_TIMEOUT_ENV_VAR: "0"}, clear=True):
+            with self.assertRaises(CompilationError):
+                SchemaService(_credentials())
+
     def test_timeout_is_passed_to_request(self):
         with mock.patch.dict("os.environ", {}, clear=True):
             service = SchemaService(_credentials())
@@ -45,4 +50,4 @@ class TestSchemaServiceTimeout(unittest.TestCase):
         with mock.patch.object(service.session, "get", return_value=response) as get:
             service.get_table("db", "analytics", "orders")
 
-        self.assertEqual(get.call_args.kwargs["timeout"], 120)
+        self.assertEqual(get.call_args.kwargs["timeout"], DEFAULT_SCHEMA_TIMEOUT_SECONDS)

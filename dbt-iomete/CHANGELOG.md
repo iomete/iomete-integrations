@@ -1,5 +1,5 @@
 ## dbt-iomete 1.8.1 (Jun 25, 2026)
-- Increased the schema-service HTTP request timeout from 10s to 120s so large catalogs no longer time out while fetching metadata. The value is overridable via the `IOMETE_DBT_SCHEMA_TIMEOUT` environment variable.
+- Increased the schema-service HTTP request timeout from 10s to 120s so large catalogs no longer time out while fetching metadata. The value is overridable via the `IOMETE_DBT_SCHEMA_TIMEOUT_SECONDS` environment variable.
 
 ## dbt-iomete 1.8.0 (Jun 25, 2026)
 - Upgraded `dbt-core` from 1.7 to 1.8 (1.8.9) and adopted the new `dbt-adapters` (>=1.10.0) package that 1.8 split out of dbt-core; bumped `dbt-common` to >=1.13.0.

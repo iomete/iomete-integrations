@@ -6,20 +6,25 @@ from dbt_common.exceptions import CompilationError
 from requests.adapters import HTTPAdapter
 from urllib3 import Retry
 
-DEFAULT_SCHEMA_TIMEOUT = 120
-SCHEMA_TIMEOUT_ENV_VAR = "IOMETE_DBT_SCHEMA_TIMEOUT"
+DEFAULT_SCHEMA_TIMEOUT_SECONDS = 120
+SCHEMA_TIMEOUT_ENV_VAR = "IOMETE_DBT_SCHEMA_TIMEOUT_SECONDS"
 
 
 def _resolve_timeout() -> int:
     raw = os.environ.get(SCHEMA_TIMEOUT_ENV_VAR)
     if raw is None:
-        return DEFAULT_SCHEMA_TIMEOUT
+        return DEFAULT_SCHEMA_TIMEOUT_SECONDS
     try:
-        return int(raw)
+        value = int(raw)
     except ValueError:
         raise CompilationError(
             f"{SCHEMA_TIMEOUT_ENV_VAR} must be an integer number of seconds, got: {raw!r}"
         )
+    if value <= 0:
+        raise CompilationError(
+            f"{SCHEMA_TIMEOUT_ENV_VAR} must be a positive number of seconds, got: {value}"
+        )
+    return value
 
 
 class SchemaService:
