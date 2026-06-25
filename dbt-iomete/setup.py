@@ -76,7 +76,7 @@ setup(
         "dbt-adapters>=1.10.0,<2.0",
         "dbt-common>=1.13.0,<2.0",
         "sqlparams>=3.0.0",
-        "py-hive-iomete>=2.1.3",
+        "pyspark[connect]>=3.5.0",
         "sentry-sdk==2.20.0",
         "iomete-sdk==3.0.0"
     ],

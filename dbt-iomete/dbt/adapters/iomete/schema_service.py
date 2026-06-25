@@ -29,7 +29,7 @@ class SchemaService:
 
     def _get_namespaces(self, database: str, path: str, error_message: str):
         try:
-            namespaces = f"{self.credentials.scheme}://{self.credentials.host}:{self.credentials.port}/api/v1/domains/{self.credentials.domain}/schema/catalogs/{database}/namespaces"
+            namespaces = f"{self.credentials.scheme}://{self.credentials.host}:{self.credentials.port}/api/v2/domains/{self.credentials.domain}/schema/catalogs/{database}/namespaces"
 
             response = self.session.get(f"{namespaces}/{path}", timeout=10,
                                         headers={"X-API-TOKEN": self.credentials.token})

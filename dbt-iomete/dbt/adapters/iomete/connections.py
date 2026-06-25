@@ -5,17 +5,14 @@ from dbt.adapters.sql import SQLConnectionManager
 from dbt.adapters.events.logging import AdapterLogger
 from dbt.adapters.exceptions import FailedToConnectError
 from dbt.exceptions import DbtProfileError
-from dbt_common.exceptions import DbtRuntimeError, DbtDatabaseError
+from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.dataclass_schema import ValidationError
 from dbt_common.utils.encoding import DECIMALS
-
-from TCLIService.ttypes import TOperationState as ThriftState
-from pyhive import hive
 
 from datetime import datetime
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import time
 
@@ -72,121 +69,117 @@ class SparkCredentials(Credentials):
         return f"{self.scheme}://{self.host}:{self.port}/dataplane/{self.dataplane}/lakehouse/{self.lakehouse}"
 
     def _connection_keys(self):
-        return 'host', 'port','dataplane', 'lakehouse', 'database', 'schema'
+        return 'host', 'port', 'dataplane', 'lakehouse', 'database', 'schema'
 
 
-class PyhiveConnectionWrapper(object):
-    """Wrap a Spark connection in a way that no-ops transactions"""
+class SparkConnectCursor(object):
+    """A minimal DBAPI-style cursor on top of a Spark Connect ``SparkSession``.
 
-    # https://forums.databricks.com/questions/2157/in-apache-spark-sql-can-we-roll-back-the-transacti.html  # noqa
+    dbt's ``SQLConnectionManager`` drives SQL through a cursor that exposes
+    ``execute``/``fetchall``/``description``. Spark Connect has no DBAPI layer,
+    so we wrap ``spark.sql(...)`` here. SQL commands (DDL/DML) execute eagerly
+    on the server when ``spark.sql`` is called; SELECTs are materialized lazily
+    on ``fetchall``/``fetchone`` via ``collect()``.
+    """
 
-    def __init__(self, handle):
-        self.handle = handle
-        self._cursor = None
+    def __init__(self, spark):
+        self._spark = spark
+        self._df = None
+        self._rows: Optional[List] = None
 
-    def cursor(self):
-        self._cursor = self.handle.cursor()
+    def __enter__(self):
         return self
 
-    def cancel(self):
-        if self._cursor:
-            # Handle bad response in the pyhive lib when
-            # the connection is cancelled
-            try:
-                self._cursor.cancel()
-            except EnvironmentError as exc:
-                logger.debug(
-                    "Exception while cancelling query: {}".format(exc)
-                )
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
-    def close(self):
-        if self._cursor:
-            # Handle bad response in the pyhive lib when
-            # the connection is cancelled
-            try:
-                self._cursor.close()
-            except EnvironmentError as exc:
-                logger.debug(
-                    "Exception while closing cursor: {}".format(exc)
-                )
-        self.handle.close()
-
-    def rollback(self, *args, **kwargs):
-        pass
-
-    def fetchall(self):
-        return self._cursor.fetchall()
+    @property
+    def description(self) -> List[Tuple]:
+        if self._df is None:
+            return []
+        return [
+            (f.name, f.dataType.simpleString(), None, None, None, None, None)
+            for f in self._df.schema.fields
+        ]
 
     def execute(self, sql, bindings=None):
-        if sql.strip().endswith(";"):
-            sql = sql.strip()[:-1]
-
-        # Reaching into the private enumeration here is bad form,
-        # but there doesn't appear to be any way to determine that
-        # a query has completed executing from the pyhive public API.
-        # We need to use an async query + poll here, otherwise our
-        # request may be dropped after ~5 minutes by the thrift server
-        STATE_PENDING = [
-            ThriftState.INITIALIZED_STATE,
-            ThriftState.RUNNING_STATE,
-            ThriftState.PENDING_STATE,
-        ]
-
-        STATE_SUCCESS = [
-            ThriftState.FINISHED_STATE,
-        ]
+        sql = sql.strip().rstrip(";\n")
 
         if bindings is not None:
             bindings = [self._fix_binding(binding) for binding in bindings]
+            sql = sql % tuple(bindings)
 
-        self._cursor.execute(sql, bindings, async_=True)
-        poll_state = self._cursor.poll()
-        state = poll_state.operationState
+        # Reset any rows materialized from a previous statement.
+        self._rows = None
+        self._df = self._spark.sql(sql)
 
-        while state in STATE_PENDING:
-            logger.debug("Poll status: {}, sleeping".format(state))
+    def fetchall(self):
+        if self._df is None:
+            return None
+        if self._rows is None:
+            self._rows = [tuple(row) for row in self._df.collect()]
+        return self._rows
 
-            poll_state = self._cursor.poll()
-            state = poll_state.operationState
+    def fetchone(self):
+        rows = self.fetchall()
+        if not rows:
+            return None
+        return rows[0]
 
-        # If an errorMessage is present, then raise a database exception
-        # with that exact message. If no errorMessage is present, the
-        # query did not necessarily succeed: check the state against the
-        # known successful states, raising an error if the query did not
-        # complete in a known good state. This can happen when queries are
-        # cancelled, for instance. The errorMessage will be None, but the
-        # state of the query will be "cancelled". By raising an exception
-        # here, we prevent dbt from showing a status of OK when the query
-        # has in fact failed.
-        if poll_state.errorMessage:
-            logger.debug("Poll response: {}".format(poll_state))
-            logger.debug("Poll status: {}".format(state))
-            raise DbtDatabaseError(poll_state.errorMessage)
+    def cancel(self):
+        try:
+            self._spark.interruptAll()
+        except Exception as exc:
+            logger.debug("Exception while cancelling query: {}".format(exc))
 
-        elif state not in STATE_SUCCESS:
-            status_type = ThriftState._VALUES_TO_NAMES.get(
-                state,
-                'Unknown<{!r}>'.format(state))
-
-            raise DbtDatabaseError(
-                "Query failed with status: {}".format(status_type))
-
-        logger.debug("Poll status: {}, query complete".format(state))
+    def close(self):
+        self._df = None
+        self._rows = None
 
     @classmethod
     def _fix_binding(cls, value):
-        """Convert complex datatypes to primitives that can be loaded by
-           the Spark driver"""
+        """Convert complex datatypes to SQL literals that can be interpolated
+        into the statement before it is sent to Spark Connect."""
         if isinstance(value, NUMBERS):
             return float(value)
         elif isinstance(value, datetime):
-            return value.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+            return "'" + value.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3] + "'"
+        elif isinstance(value, str):
+            return "'" + value.replace("'", "\\'") + "'"
+        elif value is None:
+            return "NULL"
         else:
-            return value
+            return "'" + str(value) + "'"
 
-    @property
-    def description(self):
-        return self._cursor.description
+
+class SparkConnectConnectionWrapper(object):
+    """Wrap a Spark Connect session so it looks like a DBAPI connection and
+    no-ops transactions (Spark has none)."""
+
+    def __init__(self, spark):
+        self.spark = spark
+        self._cursor: Optional[SparkConnectCursor] = None
+
+    def cursor(self):
+        self._cursor = SparkConnectCursor(self.spark)
+        return self._cursor
+
+    def cancel(self):
+        if self._cursor:
+            self._cursor.cancel()
+
+    def close(self):
+        if self._cursor:
+            self._cursor.close()
+        # NOTE: Do NOT call self.spark.stop() here. SparkSession.builder.remote(...)
+        # .getOrCreate() returns a session backed by a shared gRPC channel, so every
+        # dbt thread holds the same channel. Stopping it on a per-connection close
+        # tears the channel down for all other in-flight threads ("Channel closed!"
+        # / CANCELLED). The Spark Connect client is released automatically at process
+        # exit, so we only drop our cursor reference here.
+
+    def rollback(self, *args, **kwargs):
+        pass
 
 
 class SparkConnectionManager(SQLConnectionManager):
@@ -203,12 +196,7 @@ class SparkConnectionManager(SQLConnectionManager):
             if len(exc.args) == 0:
                 raise
 
-            thrift_resp = exc.args[0]
-            if hasattr(thrift_resp, 'status'):
-                msg = thrift_resp.status.errorMessage
-                raise DbtRuntimeError(msg)
-            else:
-                raise DbtRuntimeError(str(exc))
+            raise DbtRuntimeError(str(exc)) from exc
 
     def cancel(self, connection):
         connection.handle.cancel()
@@ -245,6 +233,43 @@ class SparkConnectionManager(SQLConnectionManager):
                     f"The config '{key}' is set to none! This config is required to connect to iomete")
 
     @classmethod
+    def _build_remote_url(cls, creds) -> str:
+        """Build the Spark Connect remote URL (``sc://host:port/;param=value``).
+
+        Reserved params understood by the Spark Connect client are ``use_ssl``
+        and ``token`` (a bearer token, which requires ``use_ssl=true``). Any
+        other param is forwarded to the server as a gRPC metadata header, which
+        is how IOMETE routes the request to the right lakehouse/dataplane.
+        """
+        params: List[str] = [f"use_ssl={'true' if creds.https else 'false'}"]
+        if creds.token:
+            params.append(f"api_token={creds.token}")
+        # Routing headers consumed by the IOMETE gateway.
+        if creds.lakehouse:
+            params.append(f"cluster={creds.lakehouse}")
+        if creds.dataplane:
+            params.append(f"data_plane={creds.dataplane}")
+
+        return f"sc://{creds.host}:{creds.port}/;" + ";".join(params)
+
+    @classmethod
+    def _connect(cls, creds):
+        try:
+            from pyspark.sql import SparkSession
+        except ImportError as e:
+            raise FailedToConnectError(
+                "pyspark with Spark Connect support is required for the iomete adapter. "
+                "Install it with `pip install \"pyspark[connect]\"`."
+            ) from e
+
+        builder = SparkSession.builder.remote(cls._build_remote_url(creds))
+        for key, value in (creds.server_side_parameters or {}).items():
+            builder = builder.config(key, value)
+
+        spark = builder.getOrCreate()
+        return SparkConnectConnectionWrapper(spark)
+
+    @classmethod
     def open(cls, connection):
         if connection.state == ConnectionState.OPEN:
             logger.debug('Connection is already open, skipping open.')
@@ -256,26 +281,10 @@ class SparkConnectionManager(SQLConnectionManager):
         for i in range(1 + creds.connect_retries):
             try:
                 cls.validate_creds(creds, ['host', 'port', 'user', 'token', 'lakehouse', 'dataplane'])
-                conn = hive.connect(
-                    scheme=creds.scheme,
-                    host=creds.host,
-                    port=creds.port,
-                    lakehouse=creds.lakehouse,
-                    database=creds.database,
-                    username=creds.user,
-                    password=creds.token,
-                    data_plane=creds.dataplane
-                )
-                handle = PyhiveConnectionWrapper(conn)
+                handle = cls._connect(creds)
                 break
             except Exception as e:
                 exc = e
-                if isinstance(e, EOFError):
-                    # The user almost certainly has invalid credentials.
-                    # Perhaps a password is invalid, or something
-                    msg = 'Failed to connect. Make sure lakehouse is in non-terminated state ' \
-                          'and credentials (user/password) are correct'
-                    raise FailedToConnectError(msg) from e
                 retryable_message = _is_retryable_error(e)
                 if retryable_message and creds.connect_retries > 0:
                     msg = (
@@ -297,7 +306,8 @@ class SparkConnectionManager(SQLConnectionManager):
                     time.sleep(creds.connect_timeout)
                 else:
                     raise FailedToConnectError(
-                        'Failed to connect! Make sure host, port, protocol (https/http) is correct!'
+                        'Failed to connect! Make sure host, port, protocol (https/http) is correct '
+                        'and that the lakehouse exposes a Spark Connect endpoint!'
                     ) from e
         else:
             raise exc
@@ -308,12 +318,11 @@ class SparkConnectionManager(SQLConnectionManager):
 
 
 def _is_retryable_error(exc: Exception) -> Optional[str]:
-    message = getattr(exc, 'message', None)
-    if message is None:
+    message = str(getattr(exc, 'message', exc) or "").lower()
+    if not message:
         return None
-    message = message.lower()
     if 'pending' in message:
-        return exc.message
+        return message
     if 'temporarily_unavailable' in message:
-        return exc.message
+        return message
     return None

@@ -176,9 +176,9 @@ class SparkAdapter(SQLAdapter):
             as_dict['table_database'] = column.table_database
             yield as_dict
 
-    def get_catalog(self, manifest):
+    def get_catalog(self, relation_configs, used_schemas):
 
-        schema_map = self._get_catalog_schemas(manifest)
+        schema_map = self._get_catalog_schemas(relation_configs)
 
         with executor(self.config) as tpe:
             futures: List[Future[agate.Table]] = []
@@ -186,7 +186,7 @@ class SparkAdapter(SQLAdapter):
                 for schema in schemas:
                     futures.append(tpe.submit_connected(
                         self, schema,
-                        self._get_one_catalog, info, [schema], manifest
+                        self._get_one_catalog, info, [schema], relation_configs
                     ))
             catalogs, exceptions = catch_as_completed(futures)
         return catalogs, exceptions
@@ -204,7 +204,8 @@ class SparkAdapter(SQLAdapter):
         schema = list(schemas)[0]
 
         columns: List[Dict[str, Any]] = []
-        for relation in self.list_relations(database, schema):
+        relations = self.list_relations_without_caching(SparkRelation.create(database=database, schema=schema))
+        for relation in relations:
             columns.extend(self._get_columns_for_catalog(relation))
         return agate.Table.from_object(
             columns, column_types=DEFAULT_TYPE_TESTER
@@ -296,7 +297,6 @@ class SparkAdapter(SQLAdapter):
                 if hasattr(cursor, "fetchone"):
                     return cursor.fetchone()
                 else:
-                    # AttributeError: 'PyhiveConnectionWrapper' object has no attribute 'fetchone'
                     return cursor.fetchall()[0]
             elif fetch == "all":
                 return cursor.fetchall()
