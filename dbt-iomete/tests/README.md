@@ -19,10 +19,10 @@ Before running the tests, the following resources must exist in the target IOMET
 > Note: The values in angle brackets (e.g. `<DBT_IOMETE_LAKEHOUSE>`, `<DBT_IOMETE_DATAPLANE>`,
 > `<DBT_IOMETE_DOMAIN>`) refer to the corresponding environment variables set below.
 
-> TODO: A setup script to auto-create these resources (compute, catalogs, data policies) if they
-> don't already exist is planned, so this prep is no longer manual. The token used by the tests is
-> expected to have permission to create/edit/consume compute, create catalogs, and create data
-> policies — the same script can later be reused by CI to provision the required resources.
+> TODO: We should add a setup script to auto-create these resources (compute, catalogs, data
+> policies) if they don't already exist, so this prep is no longer manual. The token used by the
+> tests is expected to have permission to create/edit/consume compute, create catalogs, and create
+> data policies — the same script can later be reused by CI to provision the required resources.
 
 > TODO: The functional and integration suites are slow — even run in parallel they take ~15 minutes
 > end to end. That is too long to gate every PR and the release process on. We should look into
