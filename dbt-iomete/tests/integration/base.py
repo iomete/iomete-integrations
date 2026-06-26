@@ -623,10 +623,9 @@ class DBTIntegrationTest(unittest.TestCase):
         relation_a = self._make_relation(table_a, table_a_schema, table_a_db)
         relation_b = self._make_relation(table_b, table_b_schema, table_b_db)
 
-        # Temp fix to get fresh table metadata
-        time.sleep(30)
+        columns_a, columns_b = self._wait_for_fresh_metadata(relation_a, relation_b)
 
-        self._assertTableColumnsEqual(relation_a, relation_b)
+        self._assertTableColumnsEqual(relation_a, relation_b, columns_a, columns_b)
 
         sql = self._assertTablesEqualSql(relation_a, relation_b)
         result = self.run_sql(sql, fetch='one')
@@ -641,6 +640,26 @@ class DBTIntegrationTest(unittest.TestCase):
             0,
             'num_mismatched nonzero: ' + sql
         )
+
+    def _wait_for_fresh_metadata(
+        self, relation_a, relation_b, timeout_seconds=30, interval_seconds=1
+    ):
+        """Poll until both relations' columns are visible and match in count,
+        then return them so the caller can reuse the fetch.
+
+        Gates against post-write catalog lag without a blind sleep. Column
+        equality is left to the caller's assertions; on timeout we return the
+        last fetch so those assertions report the real difference.
+        """
+        deadline = time.monotonic() + timeout_seconds
+        
+        while True:
+            cols_a = self.get_relation_columns(relation_a)
+            cols_b = self.get_relation_columns(relation_b)
+            settled = cols_a and cols_b and len(cols_a) == len(cols_b)
+            if settled or time.monotonic() >= deadline:
+                return cols_a, cols_b
+            time.sleep(interval_seconds)
 
     def _make_relation(self, identifier, schema=None, database=None):
         if schema is None:
@@ -821,9 +840,12 @@ class DBTIntegrationTest(unittest.TestCase):
             0
         )
 
-    def _assertTableColumnsEqual(self, relation_a, relation_b):
-        table_a_result = self.get_relation_columns(relation_a)
-        table_b_result = self.get_relation_columns(relation_b)
+    def _assertTableColumnsEqual(self, relation_a, relation_b,
+                                 table_a_result=None, table_b_result=None):
+        if table_a_result is None:
+            table_a_result = self.get_relation_columns(relation_a)
+        if table_b_result is None:
+            table_b_result = self.get_relation_columns(relation_b)
 
         text_types = {'text', 'character varying', 'character', 'varchar'}
 
