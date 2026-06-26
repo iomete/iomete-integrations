@@ -373,24 +373,11 @@ class DBTIntegrationTest(unittest.TestCase):
                 self._drop_schema_cascade(self.alternative_database, schema)
 
     def _drop_schema_cascade(self, database, schema):
-        available_schemas = self._get_schemas()
-        if schema in available_schemas:
-            self._drop_tables_views_in_schema(database, schema)
-            self._drop_schema_named(database, schema)
-
-    def _drop_tables_views_in_schema(self, database, schema):
-        views = self._get_views_in_schema(schema)
-        for view in views:
-            self._drop_view(database,schema,view)
-        tables = self._get_tables_in_schema(schema)
-        for table in tables:
-            self._drop_table(database,schema,table)
-
-    def _drop_table(self, database, schema, table):
-        self.run_sql(f'DROP TABLE IF EXISTS {schema}.{table}')
-
-    def _drop_view(self, database, schema, view):
-        self.run_sql(f'DROP VIEW IF EXISTS {schema}.{view}')
+        # DROP SCHEMA ... CASCADE already removes every table and view in the
+        # schema (verified against the lakehouse, including managed Iceberg
+        # tables), so enumerating and dropping each object first is redundant.
+        # IF EXISTS makes a prior existence check unnecessary.
+        self._drop_schema_named(database, schema)
 
     @property
     def project_config(self):
@@ -889,18 +876,6 @@ class DBTIntegrationTest(unittest.TestCase):
                                     parsed,
                                     end.strftime(datefmt))
                                 )
-
-    def _get_views_in_schema(self, schema):
-        result = self.run_sql(f'show views in {schema}', fetch='all')
-        return [view for (_, view, _) in result]
-
-    def _get_tables_in_schema(self, schema):
-        result = self.run_sql(f'show tables in {schema}', fetch='all')
-        return [table for (_, table, _) in result]
-
-    def _get_schemas(self):
-        result = self.run_sql('SHOW DATABASES', fetch='all')
-        return [row[0] for row in result]
 
 class AnyFloat:
     """Any float. Use this in assertEqual() calls to assert that it is a float.
