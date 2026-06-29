@@ -3,7 +3,7 @@ name: RELEASE for dbt-iomete
 on:
   push:
     tags:
-      - v*  # Will only run this workflow for tags starting with v, e.g. v2.0.0...
+      - 'dbt-iomete-v*' # Will only run this workflow for tags starting with dbt-iomete-v, e.g. v2.0.0...
 
 defaults:
   run:
@@ -37,8 +37,8 @@ jobs:
         id: extract_tag
         shell: bash
         run: |
-          NEW_TAG=${REF##*/}
-          echo "new_version=${NEW_TAG:1}" >> $GITHUB_OUTPUT
+          NEW_TAG=${REF##*/}                                     # dbt-iomete-v2.0.0
+          echo "new_version=${NEW_TAG##*-v}" >> $GITHUB_OUTPUT   # 2.0.0
 
       - name: Set up python
         uses: actions/setup-python@v5
