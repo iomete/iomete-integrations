@@ -13,7 +13,6 @@ from dbt.tests.adapter.basic.test_adapter_methods import BaseAdapterMethod
 from dbt.tests.adapter.basic.test_generic_tests import BaseGenericTests
 
 
-@pytest.mark.skip(reason="TODO: Failing due to core API caching")
 class TestSimpleMaterializations(BaseSimpleMaterializations):
     pass
 

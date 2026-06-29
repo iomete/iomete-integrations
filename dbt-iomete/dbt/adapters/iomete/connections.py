@@ -118,8 +118,7 @@ class PyhiveConnectionWrapper(object):
         return self._cursor.fetchall()
 
     def execute(self, sql, bindings=None):
-        if sql.strip().endswith(";"):
-            sql = sql.strip()[:-1]
+        sql = sql.strip().rstrip(";\n")
 
         # Reaching into the private enumeration here is bad form,
         # but there doesn't appear to be any way to determine that
