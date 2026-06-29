@@ -1,7 +1,4 @@
-"""Provisioning constants, connection config, and filesystem paths.
-
-Everything here is sourced from ``DBT_IOMETE_*`` environment variables (see tests/README.md).
-"""
+"""Provisioning constants, connection config, and filesystem paths."""
 
 from __future__ import annotations
 
