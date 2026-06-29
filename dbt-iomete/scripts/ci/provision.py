@@ -21,7 +21,7 @@ The flow (all against the existing ``DBT_IOMETE_DOMAIN`` domain):
    catalogs;
 7. write the test-user credentials to ``dbt-iomete/.env.test`` (loaded by
    pytest-dotenv) so the suites connect as the provisioned user;
-8. preflight ``SELECT 1`` as the user.
+8. healthcheck ``SELECT 1`` as the user.
 
 State is written incrementally, so a crash mid-provision still leaves a state
 file teardown can act on. The admin token is never written to disk.
@@ -32,8 +32,8 @@ script is just the command-line entrypoint.
 Usage::
 
     python scripts/ci/provision.py provision    # create resources + write state
-    python scripts/ci/provision.py preflight    # SELECT 1 as the test user
-    python scripts/ci/provision.py all          # provision then preflight (default)
+    python scripts/ci/provision.py healthcheck  # SELECT 1 as the test user
+    python scripts/ci/provision.py all          # provision then healthcheck (default)
 
     # --state-file PATH  (default: dbt-iomete/scripts/ci/.provision-state.json)
 """
@@ -50,7 +50,7 @@ from resources import (
     Config,
     ProvisionError,
     load_dotenv,
-    preflight,
+    healthcheck,
     provision,
 )
 
@@ -64,8 +64,8 @@ def main(argv: Optional[list] = None) -> int:
         "command",
         nargs="?",
         default="all",
-        choices=["provision", "preflight", "all"],
-        help="provision: create resources; preflight: SELECT 1 as the test user; all: both (default)",
+        choices=["provision", "healthcheck", "all"],
+        help="provision: create resources; healthcheck: SELECT 1 as the test user; all: both (default)",
     )
     parser.add_argument(
         "--state-file",
@@ -85,8 +85,8 @@ def main(argv: Optional[list] = None) -> int:
 
         if args.command in ("provision", "all"):
             provision(config, args.state_file)
-        if args.command in ("preflight", "all"):
-            preflight(config)
+        if args.command in ("healthcheck", "all"):
+            healthcheck(config)
     except ProvisionError as exc:
         logger.error("Provisioning failed: %s", exc)
 

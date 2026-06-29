@@ -99,8 +99,8 @@ Optional overrides (sensible defaults are built in):
 
 ### 4. Local tooling
 
-- Python 3 with `requests` (and `pyhive` + thrift for the preflight query; the
-  preflight degrades to a metadata check if `pyhive` is unavailable).
+- Python 3 with `requests` (and `pyhive` + thrift for the healthcheck query; the
+  healthcheck degrades to a metadata check if `pyhive` is unavailable).
 - `tox` and the dbt test dependencies, for the suites themselves.
 - Network egress to the host on the configured port.
 

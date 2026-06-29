@@ -9,7 +9,7 @@ from .client import IometeClient
 from .config import DEFAULT_STATE_FILE, Config, load_dotenv
 from .errors import ProvisionError
 from .state import ProvisionState
-from .workflow import preflight, provision, teardown
+from .workflow import healthcheck, provision, teardown
 
 __all__ = [
     "Config",
@@ -17,8 +17,8 @@ __all__ = [
     "IometeClient",
     "ProvisionError",
     "ProvisionState",
+    "healthcheck",
     "load_dotenv",
-    "preflight",
     "provision",
     "teardown",
 ]

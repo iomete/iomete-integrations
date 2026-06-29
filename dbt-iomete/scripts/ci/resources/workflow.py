@@ -97,7 +97,7 @@ def provision(config: Config, state_path: str) -> ProvisionState:
     return state
 
 
-def preflight(config: Config) -> None:
+def healthcheck(config: Config) -> None:
     """Open a real connection as the test user and run ``SELECT 1``.
 
     This is the closest check to what the suites do: it proves the test user can
@@ -121,7 +121,7 @@ def preflight(config: Config) -> None:
         )
 
     logger.info(
-        "Preflight: connecting to compute %r as %r and running SELECT 1",
+        "Healthcheck: connecting to compute %r as %r and running SELECT 1",
         compute,
         username,
     )
@@ -143,7 +143,7 @@ def preflight(config: Config) -> None:
             result = cursor.fetchall()
             if not result or result[0][0] != 1:
                 raise ProvisionError(
-                    f"Preflight SELECT 1 returned unexpected result: {result!r}"
+                    f"Healthcheck SELECT 1 returned unexpected result: {result!r}"
                 )
         finally:
             conn.close()
@@ -155,15 +155,15 @@ def preflight(config: Config) -> None:
     while True:
         try:
             attempt()
-            logger.info("Preflight OK: the test user can query the compute.")
+            logger.info("Healthcheck OK: the test user can query the compute.")
             return
         except Exception as exc:
             if time.time() >= deadline:
                 raise ProvisionError(
-                    f"Preflight failed after warmup retries: {exc}"
+                    f"Healthcheck failed after warmup retries: {exc}"
                 ) from exc
             logger.info(
-                "Preflight not ready yet (%s); retrying ...", type(exc).__name__
+                "Healthcheck not ready yet (%s); retrying ...", type(exc).__name__
             )
             time.sleep(config.poll_interval_seconds)
 

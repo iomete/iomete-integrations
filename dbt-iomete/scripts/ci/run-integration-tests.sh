@@ -46,8 +46,8 @@ if [[ "${SKIP_PROVISION:-0}" != "1" ]]; then
 
   # Provision wrote the temp user's credentials to dbt-iomete/.env.test; the
   # suites pick them up via pytest-dotenv (see tox.ini), so no export is needed.
-  echo "[run-integration-tests] preflight"
-  "$PYTHON_BIN" "$SCRIPT_DIR/provision.py" preflight --state-file "$STATE_FILE"
+  echo "[run-integration-tests] healthcheck"
+  "$PYTHON_BIN" "$SCRIPT_DIR/provision.py" healthcheck --state-file "$STATE_FILE"
 else
   echo "[run-integration-tests] SKIP_PROVISION=1 — skipping provisioning and teardown"
 fi

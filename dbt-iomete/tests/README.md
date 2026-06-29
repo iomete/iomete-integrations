@@ -70,7 +70,7 @@ To only ensure resources (without running tests):
 
 ```shell
 python scripts/ci/provision.py provision   # create compute + catalog, start, wait
-python scripts/ci/provision.py preflight    # SELECT 1 against the compute
+python scripts/ci/provision.py healthcheck  # SELECT 1 against the compute
 ```
 
 ### Iterating on a single test locally
