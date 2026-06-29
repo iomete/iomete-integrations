@@ -373,10 +373,6 @@ class DBTIntegrationTest(unittest.TestCase):
                 self._drop_schema_cascade(self.alternative_database, schema)
 
     def _drop_schema_cascade(self, database, schema):
-        # DROP SCHEMA ... CASCADE already removes every table and view in the
-        # schema (verified against the lakehouse, including managed Iceberg
-        # tables), so enumerating and dropping each object first is redundant.
-        # IF EXISTS makes a prior existence check unnecessary.
         self._drop_schema_named(database, schema)
 
     @property
@@ -632,14 +628,14 @@ class DBTIntegrationTest(unittest.TestCase):
         self, relation_a, relation_b, timeout_seconds=30, interval_seconds=1
     ):
         """Poll until both relations' columns are visible and match in count,
-        then return them so the caller can reuse the fetch.
+        then return them so the caller can reuse it.
 
-        Gates against post-write catalog lag without a blind sleep. Column
-        equality is left to the caller's assertions; on timeout we return the
-        last fetch so those assertions report the real difference.
+        Guards against post-write catalog lag without relying on a blind sleep. 
+        Column-level equality is intentionally left to the caller's assertions. 
+        On timeout, return the last fetched result so those assertions can show the actual mismatch.
         """
         deadline = time.monotonic() + timeout_seconds
-        
+
         while True:
             cols_a = self.get_relation_columns(relation_a)
             cols_b = self.get_relation_columns(relation_b)
