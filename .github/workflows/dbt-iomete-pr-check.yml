@@ -7,22 +7,33 @@ on:
       - 'dbt-iomete/**'
       - '.github/workflows/dbt-iomete-pr-check.yml'
 
+defaults:
+  run:
+    working-directory: dbt-iomete
 
 jobs:
   test:
     runs-on: ubuntu-latest
 
+    env:
+      # Admin token for provisioning resources. Non-secret target config is
+      # loaded from .github/ci/dbt-iomete.env below.
+      DBT_IOMETE_ADMIN_TOKEN: ${{ secrets.DBT_IOMETE_ADMIN_TOKEN }}
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+
+      - name: Load IOMETE CI config
+        run: cat "$GITHUB_WORKSPACE/.github/ci/dbt-iomete.env" >> "$GITHUB_ENV"
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
       - name: Cache pip
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt', '**/dev-requirements.txt') }}
@@ -32,9 +43,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r dbt-iomete/dev-requirements.txt
-          pip install -r dbt-iomete/requirements.txt
+          pip install -r dev-requirements.txt
+          pip install -r requirements.txt
 
       - name: Run Unit tests
-        run: |
-          tox -e unit -c dbt-iomete/tox.ini
+        run: tox -e unit
+
+      - name: Run Integration and Functional tests
+        run: bash scripts/ci/run-integration-tests.sh
