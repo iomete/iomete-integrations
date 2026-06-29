@@ -24,12 +24,6 @@ Before running the tests, the following resources must exist in the target IOMET
 > tests is expected to have permission to create/edit/consume compute, create catalogs, and create
 > data policies — the same script can later be reused by CI to provision the required resources.
 
-> TODO: The functional and integration suites are slow. Baseline was ~15 min end to end even with
-> `-n20`, too long to gate every PR and release on. A first round of fixes trimmed ~3–4 min (poll
-> instead of a blind 30s metadata sleep; single `DROP SCHEMA ... CASCADE` teardown). The biggest
-> remaining win is the ~13–15s connect/warmup paid per `dbt` invocation — reuse one connection across
-> invocations — but it touches the `run_dbt` path and is risky, so it is deferred.
-
 ## Set credentials
 
 ### Option A: `.env` file (recommended)
