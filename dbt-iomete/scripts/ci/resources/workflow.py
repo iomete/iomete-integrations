@@ -19,6 +19,7 @@ import time
 
 from .client import IometeClient
 from .config import (
+    COMPUTE_ACTIVE_STATUS,
     DEFAULT_CATALOG,
     DEFAULT_TEST_ENV_FILE,
     Config,
@@ -97,8 +98,34 @@ def provision(config: Config, state_path: str) -> ProvisionState:
     return state
 
 
+def _ensure_compute_running(config: Config, compute_name: str, token: str) -> None:
+    """Start the compute if it has stopped and wait until it is ACTIVE."""
+
+    client = IometeClient(config)
+    compute_id = client.find_compute_id(compute_name, token)
+
+    if compute_id is None:
+        logger.warning(
+            "Compute %r not found via the control plane; skipping explicit "
+            "start and relying on connection warmup.",
+            compute_name,
+        )
+        return
+
+    status = client.get_compute_status(compute_id, token)
+
+    if status == COMPUTE_ACTIVE_STATUS:
+        logger.info("Compute %r is already ACTIVE.", compute_name)
+        return
+
+    logger.info("Compute %r is %s; starting it.", compute_name, status)
+
+    client.start_compute(compute_id, token)
+    client.wait_compute_active(compute_id, token)
+
+
 def healthcheck(config: Config) -> None:
-    """Open a real connection as the test user and run ``SELECT 1``.
+    """Ensure the compute is running, then run ``SELECT 1`` as the test user.
 
     This is the closest check to what the suites do: it proves the test user can
     reach the compute and query through the same thrift path the dbt adapter uses.
@@ -112,6 +139,8 @@ def healthcheck(config: Config) -> None:
         raise ProvisionError(
             f"{DEFAULT_TEST_ENV_FILE} not found or incomplete. Run `provision` first."
         )
+
+    _ensure_compute_running(config, compute, token)
 
     try:
         from pyhive import hive

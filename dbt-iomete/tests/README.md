@@ -70,7 +70,7 @@ To only ensure resources (without running tests):
 
 ```shell
 python scripts/ci/provision.py provision   # create compute + catalog, start, wait
-python scripts/ci/provision.py healthcheck  # SELECT 1 against the compute
+python scripts/ci/provision.py healthcheck  # start compute if stopped, then SELECT 1
 ```
 
 ### Iterating on a single test locally
@@ -81,6 +81,7 @@ loads automatically (see `tox.ini`):
 
 ```shell
 python scripts/ci/provision.py provision
+python scripts/ci/provision.py healthcheck
 pytest tests/integration/snapshot_validations/test_snapshot.py -k test_snapshot_diff_catalog_schema
 python scripts/ci/teardown.py              # when finished
 ```

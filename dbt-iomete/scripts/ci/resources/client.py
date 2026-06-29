@@ -27,22 +27,21 @@ logger = logging.getLogger(__name__)
 
 
 class IometeClient:
-    """Small wrapper around IOMETE control-plane APIs.
-
-    Calls use the admin token by default. Pass ``token`` when an API request
-    must run as the temporary test user, such as compute or PAT operations.
-    """
+    """Small wrapper around IOMETE control-plane APIs."""
 
     def __init__(self, config: Config):
         self.config = config
         self.session = requests.Session()
+
+    def _admin_call(self, method: str, path: str, **kwargs):
+        return self._call(method, path, token=self.config.admin_token, **kwargs)
 
     def _call(
         self,
         method: str,
         path: str,
         *,
-        token: Optional[str] = None,
+        token: str,
         json_body=None,
         form: Optional[dict] = None,
         ok=(200, 201, 204),
@@ -52,7 +51,7 @@ class IometeClient:
     ):
         url = path if path.startswith("http") else f"{self.config.base_url}{path}"
         headers = {"Accept": accept}
-        bearer = self.config.token if token is None else token
+        bearer = token
 
         if bearer:
             headers["Authorization"] = f"Bearer {bearer}"
@@ -87,7 +86,7 @@ class IometeClient:
 
     def create_user(self, username: str) -> str:
         body = (
-            self._call(
+            self._admin_call(
                 "POST",
                 "/api/v1/admin/identity/users",
                 json_body={
@@ -150,7 +149,7 @@ class IometeClient:
         return token
 
     def delete_user(self, username: str) -> None:
-        self._call(
+        self._admin_call(
             "DELETE",
             f"/api/v1/admin/identity/scim/v2/Users/{username}",
             accept="application/scim+json",
@@ -161,7 +160,7 @@ class IometeClient:
     # --- domain membership -------------------------------------------------
 
     def add_domain_member(self, username: str) -> Optional[str]:
-        self._call(
+        self._admin_call(
             "POST",
             f"/api/v1/admin/domains/{self.config.domain}/members",
             json_body=[{"type": "USER", "value": username}],
@@ -172,7 +171,7 @@ class IometeClient:
             {"searchText": username, "type": "USER", "size": 50}
         )
         page = (
-            self._call(
+            self._admin_call(
                 "GET", f"/api/v1/admin/domains/{self.config.domain}/members?{query}"
             )
             or {}
@@ -187,7 +186,7 @@ class IometeClient:
         return None
 
     def remove_domain_member(self, membership_id: str) -> None:
-        self._call(
+        self._admin_call(
             "DELETE",
             f"/api/v1/admin/domains/{self.config.domain}/members/{membership_id}",
             ok=(200, 204),
@@ -197,7 +196,7 @@ class IometeClient:
     # --- domain role (create-compute right) --------------------------------
 
     def grant_create_role(self, username: str, role_name: str) -> None:
-        self._call(
+        self._admin_call(
             "POST",
             f"/api/v1/domains/{self.config.domain}/roles",
             json_body={
@@ -206,21 +205,21 @@ class IometeClient:
                 "permissions": ROLE_PERMISSIONS,
             },
         )
-        self._call(
+        self._admin_call(
             "POST",
             f"/api/v1/domains/{self.config.domain}/members/USER/{username}/roles",
             json_body=[role_name],
         )
 
     def revoke_create_role(self, username: str, role_name: str) -> None:
-        self._call(
+        self._admin_call(
             "DELETE",
             f"/api/v1/domains/{self.config.domain}/members/USER/{username}/roles",
             json_body=[role_name],
             ok=(200, 204),
             tolerate_404=True,
         )
-        self._call(
+        self._admin_call(
             "DELETE",
             f"/api/v1/domains/{self.config.domain}/roles/{role_name}",
             ok=(200, 204),
@@ -231,7 +230,9 @@ class IometeClient:
 
     def resolve_namespace_bundle(self) -> str:
         body = (
-            self._call("GET", f"/api/v2/domains/{self.config.domain}/namespaces/list")
+            self._admin_call(
+                "GET", f"/api/v2/domains/{self.config.domain}/namespaces/list"
+            )
             or []
         )
         items = body if isinstance(body, list) else body.get("items", [])
@@ -254,7 +255,7 @@ class IometeClient:
         return bundle_id
 
     def grant_bundle_perms(self, username: str, ns_bundle_id: str) -> None:
-        self._call(
+        self._admin_call(
             "POST",
             f"/api/v1/bundles/{ns_bundle_id}/permissions",
             json_body={
@@ -264,7 +265,7 @@ class IometeClient:
         )
 
     def revoke_bundle_perms(self, username: str, ns_bundle_id: str) -> None:
-        self._call(
+        self._admin_call(
             "DELETE",
             f"/api/v1/bundles/{ns_bundle_id}/permissions",
             json_body={"actorType": "USER", "actorId": username},
@@ -275,7 +276,7 @@ class IometeClient:
     # --- catalogs ----------------------------------------------------------
 
     def catalog_exists(self, name: str) -> bool:
-        data = self._call(
+        data = self._admin_call(
             "GET",
             f"/api/v1/admin/spark/settings/catalogs/{name}",
             tolerate_404=True,
@@ -286,7 +287,7 @@ class IometeClient:
     def create_catalog(self, name: str) -> None:
         logger.info("Creating catalog %r", name)
 
-        self._call(
+        self._admin_call(
             "POST",
             "/api/v1/admin/spark/settings/catalogs",
             json_body={
@@ -305,14 +306,14 @@ class IometeClient:
         domain = self.config.domain
         logger.info("Attaching catalog %r to domain %r", name, domain)
 
-        self._call(
+        self._admin_call(
             "POST",
             "/api/v1/admin/spark/settings/catalogs/permissions/bulk",
             json_body=[{"catalogName": name, "domains": [domain]}],
         )
 
         granted = (
-            self._call(
+            self._admin_call(
                 "GET",
                 f"/api/v1/admin/spark/settings/catalogs/{name}/permissions",
             )
@@ -328,7 +329,7 @@ class IometeClient:
     def delete_catalog(self, name: str) -> None:
         logger.info("Deleting catalog %r", name)
 
-        self._call(
+        self._admin_call(
             "DELETE",
             f"/api/v1/admin/spark/settings/catalogs/{name}",
             ok=(200, 204),
@@ -387,6 +388,20 @@ class IometeClient:
 
         raise ProvisionError(f"Compute {name!r} did not appear after creation.")
 
+    def find_compute_id(self, name: str, token: str) -> Optional[str]:
+        listing = (
+            self._call(
+                "GET",
+                f"/api/v2/domains/{self.config.domain}/compute",
+                token=token,
+            )
+            or {}
+        )
+        items = listing.get("items") if isinstance(listing, dict) else listing
+        match = next((c for c in (items or []) if c.get("name") == name), None)
+
+        return match["id"] if match else None
+
     def get_compute_status(self, compute_id: str, token: str) -> str:
         data = (
             self._call(
@@ -399,11 +414,20 @@ class IometeClient:
         item = data.get("item") if isinstance(data, dict) and "item" in data else data
         return (item or {}).get("driverStatus", "UNKNOWN")
 
-    def wait_compute_active(self, compute_id: str, user_token: str) -> None:
+    def start_compute(self, compute_id: str, token: str) -> None:
+        logger.info("Starting compute %s", compute_id)
+        self._call(
+            "POST",
+            f"/api/v2/domains/{self.config.domain}/compute/{compute_id}/start",
+            token=token,
+            ok=(200, 201, 202, 204),
+        )
+
+    def wait_compute_active(self, compute_id: str, token: str) -> None:
         deadline = time.time() + self.config.active_timeout_seconds
 
         while True:
-            status = self.get_compute_status(compute_id, user_token)
+            status = self.get_compute_status(compute_id, token)
 
             if status == COMPUTE_ACTIVE_STATUS:
                 logger.info("Compute is ACTIVE.")
@@ -420,7 +444,7 @@ class IometeClient:
             time.sleep(self.config.poll_interval_seconds)
 
     def delete_compute(self, compute_id: str) -> None:
-        self._call(
+        self._admin_call(
             "DELETE",
             f"/api/v2/domains/{self.config.domain}/compute/{compute_id}",
             ok=(200, 204),
@@ -464,7 +488,7 @@ class IometeClient:
             list(catalogs),
         )
 
-        created = self._call(
+        created = self._admin_call(
             "POST", "/api/v1/admin/data-security/access/policy", json_body=body
         )
 
@@ -474,7 +498,7 @@ class IometeClient:
         raise ProvisionError(f"Access policy {name!r} not found after creation.")
 
     def delete_access_policy(self, policy_id: int) -> None:
-        self._call(
+        self._admin_call(
             "DELETE",
             f"/api/v1/admin/data-security/access/policy/{policy_id}",
             ok=(200, 204),

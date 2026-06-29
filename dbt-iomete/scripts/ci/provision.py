@@ -32,7 +32,7 @@ script is just the command-line entrypoint.
 Usage::
 
     python scripts/ci/provision.py provision    # create resources + write state
-    python scripts/ci/provision.py healthcheck  # SELECT 1 as the test user
+    python scripts/ci/provision.py healthcheck  # start compute if stopped, then SELECT 1
     python scripts/ci/provision.py all          # provision then healthcheck (default)
 
     # --state-file PATH  (default: dbt-iomete/scripts/ci/.provision-state.json)
@@ -65,7 +65,7 @@ def main(argv: Optional[list] = None) -> int:
         nargs="?",
         default="all",
         choices=["provision", "healthcheck", "all"],
-        help="provision: create resources; healthcheck: SELECT 1 as the test user; all: both (default)",
+        help="provision: create resources; healthcheck: start compute if stopped, then SELECT 1 as the test user; all: both (default)",
     )
     parser.add_argument(
         "--state-file",

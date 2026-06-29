@@ -95,7 +95,7 @@ class Config:
     """Connection + provisioning settings, sourced from ``DBT_IOMETE_*`` env vars."""
 
     host: str
-    token: str
+    admin_token: str
     domain: str
     namespace: str  # a.k.a. dataplane, e.g. "spark-resources-1"
     port: int
@@ -134,7 +134,7 @@ class Config:
 
         return cls(
             host=required("DBT_IOMETE_HOST"),
-            token=required("DBT_IOMETE_ADMIN_TOKEN"),
+            admin_token=required("DBT_IOMETE_ADMIN_TOKEN"),
             domain=required("DBT_IOMETE_DOMAIN"),
             namespace=required("DBT_IOMETE_DATAPLANE"),
             port=int(required("DBT_IOMETE_PORT")),
