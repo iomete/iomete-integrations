@@ -24,15 +24,11 @@ Before running the tests, the following resources must exist in the target IOMET
 > tests is expected to have permission to create/edit/consume compute, create catalogs, and create
 > data policies — the same script can later be reused by CI to provision the required resources.
 
-> TODO: The functional and integration suites are slow — the baseline was ~15 minutes end to end
-> even run in parallel, which is too long to gate every PR and the release process on. A first round
-> of fixes is in: the blind 30s metadata sleep in `assertTablesEqual` is now a poll (~29s/call saved
-> across 8 call sites) and per-class teardown was collapsed to a single `DROP SCHEMA ... CASCADE`
-> (~26s/teardown). The largest remaining cost is the ~13–15s connect/warmup paid on every `dbt`
-> invocation (e.g. `seed_and_run_twice` pays it 3×); reusing one connection/adapter across
-> invocations would be the biggest win, but it touches the `run_dbt` path and is the riskiest change,
-> so it is deferred. Other levers: tune the xdist worker count against the shared lakehouse, and
-> merge the functional + integration steps into a single parallel run.
+> TODO: The functional and integration suites are slow. Baseline was ~15 min end to end even with
+> `-n20`, too long to gate every PR and release on. A first round of fixes trimmed ~3–4 min (poll
+> instead of a blind 30s metadata sleep; single `DROP SCHEMA ... CASCADE` teardown). The biggest
+> remaining win is the ~13–15s connect/warmup paid per `dbt` invocation — reuse one connection across
+> invocations — but it touches the `run_dbt` path and is risky, so it is deferred.
 
 ## Set credentials
 
