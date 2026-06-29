@@ -10,9 +10,10 @@ connect as that provisioned test user, not as the admin token you supply.
 
 All you need to provide is an **admin token** (`DBT_IOMETE_ADMIN_TOKEN`) for the target environment
 (`release.iomete.cloud` by default) and the connection variables below. The admin token must have
-the permissions the provisioning step needs (create users, domain roles, catalogs, compute grants,
-and access policies). The multi-catalog snapshot tests get a uniquely-named catalog created per run
-and torn down afterwards; the built-in `spark_catalog` default is used as-is.
+the permissions the provisioning step needs (create users, domain roles, catalogs, grant catalogs
+to the domain, compute grants, and access policies). The multi-catalog snapshot tests get a
+uniquely-named catalog created per run, granted to the domain so the compute can query it, and torn
+down afterwards; the built-in `spark_catalog` default is used as-is.
 
 The provisioned test-user credentials (`DBT_IOMETE_TOKEN`, `DBT_IOMETE_USER_NAME`,
 `DBT_IOMETE_LAKEHOUSE`, `DBT_IOMETE_ALT_CATALOG`) are written by provisioning to a
@@ -109,9 +110,11 @@ DBT_IOMETE_ALT_CATALOG=<existing-catalog>   # for the multi-catalog snapshot tes
 ```
 
 The user must already have full access to both `spark_catalog` and the catalog
-named by `DBT_IOMETE_ALT_CATALOG`, and that catalog must exist (the snapshot
-tests default to `test_dbt_multi_catalog` if the variable is unset). Then run the
-suites directly, skipping provisioning and teardown:
+named by `DBT_IOMETE_ALT_CATALOG`, and that catalog must exist **and be granted
+to `DBT_IOMETE_DOMAIN`** (a catalog the domain has not been granted is invisible
+to the compute). The snapshot tests default to `test_dbt_multi_catalog` if the
+variable is unset. Then run the suites directly, skipping provisioning and
+teardown:
 
 ```shell
 SKIP_PROVISION=1 scripts/ci/run-integration-tests.sh   # both suites

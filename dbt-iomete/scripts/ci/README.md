@@ -42,7 +42,7 @@ domain. Concretely, it must be able to:
 | Domain        | Add and remove domain members                                       |
 | Domain roles  | Create, assign, and delete domain roles (this is how the test user is granted the rights to create compute and mint a token) |
 | Bundles       | Grant and revoke namespace-bundle permissions (compute + namespace use) |
-| Spark settings| Create and delete a catalog                                        |
+| Spark settings| Create and delete a catalog, and grant a catalog to the domain      |
 | Data security | Create and delete access policies                                   |
 
 If any of these are missing the provision step fails fast with the specific
@@ -117,8 +117,9 @@ Created at provision time, removed at teardown:
 - **Namespace-bundle permission grants** giving the user compute and namespace `USE`.
 - A temporary **compute** (uniquely named per run, created by the test user).
 - A **catalog** for the multi-catalog snapshot tests (uniquely named per run,
-  `dbt_multi_catalog_<suffix>`). Its name is written to `.env.test` as
-  `DBT_IOMETE_ALT_CATALOG` so the suite targets it.
+  `dbt_multi_catalog_<suffix>`), **granted to the domain** so the test
+  compute can query it. Its name is written to
+  `.env.test` as `DBT_IOMETE_ALT_CATALOG` so the suite targets it.
 - An **access policy** granting the user full access to `spark_catalog` and the
   per-run catalog.
 - A **`.env.test` file** (at `dbt-iomete/.env.test`) holding the test-user

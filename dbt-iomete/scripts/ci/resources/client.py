@@ -296,10 +296,34 @@ class IometeClient:
             },
         )
 
-        if self.catalog_exists(name):
-            return
+        if not self.catalog_exists(name):
+            raise ProvisionError(f"Catalog {name!r} did not appear after creation.")
 
-        raise ProvisionError(f"Catalog {name!r} did not appear after creation.")
+        self.attach_catalog_to_domain(name)
+
+    def attach_catalog_to_domain(self, name: str) -> None:
+        domain = self.config.domain
+        logger.info("Attaching catalog %r to domain %r", name, domain)
+
+        self._call(
+            "POST",
+            "/api/v1/admin/spark/settings/catalogs/permissions/bulk",
+            json_body=[{"catalogName": name, "domains": [domain]}],
+        )
+
+        granted = (
+            self._call(
+                "GET",
+                f"/api/v1/admin/spark/settings/catalogs/{name}/permissions",
+            )
+            or []
+        )
+
+        if domain not in granted:
+            raise ProvisionError(
+                f"Catalog {name!r} not attached to domain {domain!r} after grant; "
+                f"current domains: {granted}"
+            )
 
     def delete_catalog(self, name: str) -> None:
         logger.info("Deleting catalog %r", name)
