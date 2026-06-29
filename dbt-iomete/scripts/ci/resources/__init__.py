@@ -1,7 +1,7 @@
 """Provisioning toolkit for the dbt-iomete integration/functional test suites.
 
-Public surface used by the ``iomete_provision`` / ``iomete_teardown`` entrypoints.
-See scripts/db-tests/README.md for the lifecycle and prerequisites.
+Public surface used by the ``provision`` / ``teardown`` entrypoints.
+See scripts/ci/README.md for the lifecycle and prerequisites.
 """
 from __future__ import annotations
 

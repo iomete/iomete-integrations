@@ -38,12 +38,12 @@ PRIORITY_NORMAL = "NORMAL"
 # single test run; the token is also removed when the user is deleted at teardown.
 TOKEN_EXPIRATION_DAYS = 1
 
-# scripts/db-tests/ — one level above this package.
+# scripts/ci/ — one level above this package.
 _DB_TESTS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# dbt-iomete/ — two levels above scripts/db-tests/ (where .env lives).
+# dbt-iomete/ — two levels above scripts/ci/ (where .env lives).
 _DBT_DIR = os.path.dirname(os.path.dirname(_DB_TESTS_DIR))
 
-# The state file lives alongside the scripts, in scripts/db-tests/.
+# The state file lives alongside the scripts, in scripts/ci/.
 DEFAULT_STATE_FILE = os.path.join(_DB_TESTS_DIR, ".provision-state.json")
 
 # Per-run test-user credentials loaded by pytest-dotenv.

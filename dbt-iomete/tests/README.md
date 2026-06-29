@@ -4,7 +4,7 @@
 ## Prerequisites
 
 The integration and functional suites run against live IOMETE infrastructure. Rather than
-requiring you to set this up by hand, `scripts/db-tests/run-db-tests.sh` provisions an isolated test user,
+requiring you to set this up by hand, `scripts/ci/run-integration-tests.sh` provisions an isolated test user,
 a fresh compute, and full catalog access for the run, then tears it all down afterwards. The suites
 connect as that provisioned test user, not as the admin token you supply.
 
@@ -20,7 +20,7 @@ The provisioned test-user credentials (`DBT_IOMETE_TOKEN`, `DBT_IOMETE_USER_NAME
 
 For the full prerequisite checklist — the exact admin permissions, the platform infrastructure that
 must already exist, and what the scripts create and remove — see
-[scripts/db-tests/README.md](../scripts/db-tests/README.md).
+[scripts/ci/README.md](../scripts/ci/README.md).
 
 ## Set credentials
 
@@ -55,21 +55,21 @@ integration and functional suites, reporting a single aggregated status. It is t
 entrypoint CI uses.
 
 ```shell
-scripts/db-tests/run-db-tests.sh
+scripts/ci/run-integration-tests.sh
 ```
 
 Useful overrides:
 
 ```shell
-SUITES=integration scripts/db-tests/run-db-tests.sh   # run only one suite (integration | functional)
-SKIP_PROVISION=1 scripts/db-tests/run-db-tests.sh      # skip resource provisioning
+SUITES=integration scripts/ci/run-integration-tests.sh   # run only one suite (integration | functional)
+SKIP_PROVISION=1 scripts/ci/run-integration-tests.sh      # skip resource provisioning
 ```
 
 To only ensure resources (without running tests):
 
 ```shell
-python scripts/db-tests/iomete_provision.py provision   # create compute + catalog, start, wait
-python scripts/db-tests/iomete_provision.py preflight    # SELECT 1 against the compute
+python scripts/ci/provision.py provision   # create compute + catalog, start, wait
+python scripts/ci/provision.py preflight    # SELECT 1 against the compute
 ```
 
 ### Iterating on a single test locally
@@ -79,9 +79,9 @@ Provisioning writes the test-user credentials to `.env.test`, which `pytest-dote
 loads automatically (see `tox.ini`):
 
 ```shell
-python scripts/db-tests/iomete_provision.py provision
+python scripts/ci/provision.py provision
 pytest tests/integration/snapshot_validations/test_snapshot.py -k test_snapshot_diff_catalog_schema
-python scripts/db-tests/iomete_teardown.py              # when finished
+python scripts/ci/teardown.py              # when finished
 ```
 
 ## Running without the provisioning scripts (not recommended)
@@ -114,7 +114,7 @@ tests default to `test_dbt_multi_catalog` if the variable is unset). Then run th
 suites directly, skipping provisioning and teardown:
 
 ```shell
-SKIP_PROVISION=1 scripts/db-tests/run-db-tests.sh   # both suites
+SKIP_PROVISION=1 scripts/ci/run-integration-tests.sh   # both suites
 tox -e integration-iomete                           # or a single suite directly
 ```
 

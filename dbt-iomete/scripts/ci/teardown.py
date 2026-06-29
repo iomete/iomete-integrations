@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Remove the IOMETE resources ``iomete_provision.py`` created for a test run.
+"""Remove the IOMETE resources ``provision.py`` created for a test run.
 
 Reads the provision state file and deletes everything recorded there, in reverse
 order of creation, tolerating resources that are already gone. Also removes the
@@ -9,13 +9,13 @@ The admin token (``DBT_IOMETE_ADMIN_TOKEN``) comes from the same ``DBT_IOMETE_*`
 environment as provisioning. Run this after the suites, 
 including on failure — the bash runner wires it into an ``EXIT`` trap.
 
-The implementation lives in the ``iomete_ci`` package alongside this file; this
+The implementation lives in the ``resources`` package alongside this file; this
 script is just the command-line entrypoint.
 
 Usage::
 
-    python scripts/db-tests/iomete_teardown.py                 # default state file
-    python scripts/db-tests/iomete_teardown.py --state-file PATH
+    python scripts/ci/teardown.py                 # default state file
+    python scripts/ci/teardown.py --state-file PATH
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ import logging
 import sys
 from typing import Optional
 
-from iomete_ci import (
+from resources import (
     DEFAULT_STATE_FILE,
     Config,
     ProvisionError,
@@ -33,7 +33,7 @@ from iomete_ci import (
     teardown,
 )
 
-logger = logging.getLogger("iomete_teardown")
+logger = logging.getLogger("teardown")
 
 
 def main(argv: Optional[list] = None) -> int:

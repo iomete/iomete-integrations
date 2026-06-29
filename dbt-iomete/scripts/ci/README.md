@@ -7,11 +7,11 @@ and then remove everything the run created.
 
 The lifecycle is three steps:
 
-1. **Provision** (`iomete_provision.py`) — create the test user and resources,
+1. **Provision** (`provision.py`) — create the test user and resources,
    then emit the temporary credentials the test run needs.
-2. **Run the suites** (`run-db-tests.sh`) — run tox as the temporary user against
+2. **Run the suites** (`run-integration-tests.sh`) — run tox as the temporary user against
    the provisioned compute.
-3. **Tear down** (`iomete_teardown.py`) — delete everything the provision step
+3. **Tear down** (`teardown.py`) — delete everything the provision step
    created. This runs even when the tests fail.
 
 This document describes what must already exist before you run the scripts. If
@@ -133,13 +133,13 @@ Never touched:
 
 ```shell
 # 1. Provision (writes temp credentials for the run)
-python scripts/db-tests/iomete_provision.py
+python scripts/ci/provision.py
 
 # 2. Run the suites (provisions, runs, and tears down for you)
-scripts/db-tests/run-db-tests.sh
+scripts/ci/run-integration-tests.sh
 
 # 3. Tear down explicitly, if you provisioned by hand
-python scripts/db-tests/iomete_teardown.py
+python scripts/ci/teardown.py
 ```
 
 See [tests/README.md](../../tests/README.md) for the suite-level test instructions.

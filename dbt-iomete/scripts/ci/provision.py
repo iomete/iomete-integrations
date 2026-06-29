@@ -5,7 +5,7 @@ The integration and functional suites run as a short-lived *test user* against a
 freshly created compute, with full query access to the catalogs the tests use.
 This script creates that environment with the admin token
 (``DBT_IOMETE_ADMIN_TOKEN``) and records every resource it creates to a state
-file so ``iomete_teardown.py`` can remove it afterwards.
+file so ``teardown.py`` can remove it afterwards.
 
 The flow (all against the existing ``DBT_IOMETE_DOMAIN`` domain):
 
@@ -25,16 +25,16 @@ The flow (all against the existing ``DBT_IOMETE_DOMAIN`` domain):
 State is written incrementally, so a crash mid-provision still leaves a state
 file teardown can act on. The admin token is never written to disk.
 
-The implementation lives in the ``iomete_ci`` package alongside this file; this
+The implementation lives in the ``resources`` package alongside this file; this
 script is just the command-line entrypoint.
 
 Usage::
 
-    python scripts/db-tests/iomete_provision.py provision    # create resources + write state
-    python scripts/db-tests/iomete_provision.py preflight    # SELECT 1 as the test user
-    python scripts/db-tests/iomete_provision.py all          # provision then preflight (default)
+    python scripts/ci/provision.py provision    # create resources + write state
+    python scripts/ci/provision.py preflight    # SELECT 1 as the test user
+    python scripts/ci/provision.py all          # provision then preflight (default)
 
-    # --state-file PATH  (default: dbt-iomete/scripts/db-tests/.provision-state.json)
+    # --state-file PATH  (default: dbt-iomete/scripts/ci/.provision-state.json)
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ import logging
 import sys
 from typing import Optional
 
-from iomete_ci import (
+from resources import (
     DEFAULT_STATE_FILE,
     Config,
     ProvisionError,
@@ -53,7 +53,7 @@ from iomete_ci import (
     provision,
 )
 
-logger = logging.getLogger("iomete_provision")
+logger = logging.getLogger("provision")
 
 
 def main(argv: Optional[list] = None) -> int:
