@@ -1,9 +1,8 @@
 """Provisioning constants, connection config, and filesystem paths.
 
-Everything here is sourced from ``DBT_IOMETE_*`` environment variables (see
-tests/README.md). Paths are resolved relative to this package so the scripts work
-regardless of the caller's working directory.
+Everything here is sourced from ``DBT_IOMETE_*`` environment variables (see tests/README.md).
 """
+
 from __future__ import annotations
 
 import os
@@ -12,20 +11,22 @@ from dataclasses import dataclass
 from .errors import ProvisionError
 
 # Catalogs the suites query. spark_catalog is the built-in default catalog (never
-# created or deleted); the second is exercised by the multi-catalog snapshot tests.
+# created or deleted); the second is used by the multi-catalog snapshot tests.
 REQUIRED_CATALOGS = ("spark_catalog", "test_dbt_multi_catalog")
 
 COMPUTE_ACTIVE_STATUS = "ACTIVE"
 
 # COMPUTE asset-type permissions that let a user operate a specific compute, and
 # the NAMESPACE:USE that lets them use the data-plane it runs in. Both are granted
-# on the namespace bundle (GET /api/v1/bundles/asset-types/permissions).
+# on the namespace bundle.
 COMPUTE_PERMS = ("VIEW", "UPDATE", "DELETE", "EXECUTE", "CONSUME")
 
-# Domain-level rights release exposes as role permissions (not bundle asset
-# types): creating a compute (service=lakehouse) and minting a personal access
-# token (service=access_token). The test user needs both.
-_ROLE_ACTIONS = [{"action": a, "resources": []} for a in ("list", "create", "view", "manage")]
+# Domain-level rights release exposes as role permissions: creating a compute
+# (service=lakehouse) and minting a personal access token (service=access_token).
+# The test user needs both.
+_ROLE_ACTIONS = [
+    {"action": a, "resources": []} for a in ("list", "create", "view", "manage")
+]
 ROLE_PERMISSIONS = [
     {"service": "lakehouse", "actions": _ROLE_ACTIONS},
     {"service": "access_token", "actions": _ROLE_ACTIONS},
@@ -54,8 +55,10 @@ def load_dotenv() -> None:
     wins. The bash runner does the same; this keeps direct ``python`` invocation usable.
     """
     env_path = os.path.join(_DBT_DIR, ".env")
+
     if not os.path.isfile(env_path):
         return
+
     with open(env_path) as handle:
         for line in handle:
             line = line.strip()
@@ -70,22 +73,22 @@ class Config:
     """Connection + provisioning settings, sourced from ``DBT_IOMETE_*`` env vars."""
 
     host: str
-    token: str  # admin token, used as Bearer for control-plane calls
+    token: str
     domain: str
     namespace: str  # a.k.a. dataplane, e.g. "spark-resources-1"
     port: int
     https: bool
     catalogs: tuple = REQUIRED_CATALOGS
 
-    # Compute-create knobs.
+    # Compute-create config.
     driver_node_type: str = "driver-x-small"
     executor_node_type: str = "exec-x-small"
     max_executors: int = 2
     lakehouse_dir_prefix: str = "s3://lakehouse"
 
     # Wait/timeout tuning.
-    active_timeout: int = 600
-    poll_interval: int = 10
+    active_timeout_seconds: int = 120
+    poll_interval_seconds: int = 10
 
     @property
     def scheme(self) -> str:
@@ -99,24 +102,42 @@ class Config:
     def from_env(cls) -> "Config":
         def required(name: str) -> str:
             value = os.getenv(name)
+
             if not value:
                 raise ProvisionError(
                     f"Environment variable {name} is not set. Populate dbt-iomete/.env "
                     f"or export it (see tests/README.md)."
                 )
+
             return value
 
         return cls(
             host=required("DBT_IOMETE_HOST"),
             token=required("DBT_IOMETE_TOKEN"),
-            domain=os.getenv("DBT_IOMETE_DOMAIN", "default"),
+            domain=required("DBT_IOMETE_DOMAIN"),
             namespace=required("DBT_IOMETE_DATAPLANE"),
-            port=int(os.getenv("DBT_IOMETE_PORT", "443")),
-            https=os.getenv("DBT_IOMETE_HTTPS", "true").lower() == "true",
-            driver_node_type=os.getenv("DBT_IOMETE_DRIVER_NODE_TYPE", "driver-x-small"),
-            executor_node_type=os.getenv("DBT_IOMETE_EXECUTOR_NODE_TYPE", "exec-x-small"),
-            max_executors=int(os.getenv("DBT_IOMETE_MAX_EXECUTORS", "2")),
-            lakehouse_dir_prefix=os.getenv("DBT_IOMETE_LAKEHOUSE_DIR_PREFIX", "s3://lakehouse"),
-            active_timeout=int(os.getenv("DBT_IOMETE_ACTIVE_TIMEOUT", "600")),
-            poll_interval=int(os.getenv("DBT_IOMETE_POLL_INTERVAL", "10")),
+            port=int(required("DBT_IOMETE_PORT")),
+            https=required("DBT_IOMETE_HTTPS").lower() == "true",
+            driver_node_type=os.getenv(
+                "DBT_IOMETE_DRIVER_NODE_TYPE", cls.driver_node_type
+            ),
+            executor_node_type=os.getenv(
+                "DBT_IOMETE_EXECUTOR_NODE_TYPE", cls.executor_node_type
+            ),
+            max_executors=int(
+                os.getenv("DBT_IOMETE_MAX_EXECUTORS", str(cls.max_executors))
+            ),
+            lakehouse_dir_prefix=os.getenv(
+                "DBT_IOMETE_LAKEHOUSE_DIR_PREFIX", cls.lakehouse_dir_prefix
+            ),
+            active_timeout_seconds=int(
+                os.getenv(
+                    "DBT_IOMETE_ACTIVE_TIMEOUT_SECONDS", str(cls.active_timeout_seconds)
+                )
+            ),
+            poll_interval_seconds=int(
+                os.getenv(
+                    "DBT_IOMETE_POLL_INTERVAL_SECONDS", str(cls.poll_interval_seconds)
+                )
+            ),
         )

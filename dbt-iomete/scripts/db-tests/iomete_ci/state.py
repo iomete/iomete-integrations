@@ -9,8 +9,7 @@ class ProvisionState:
     """The set of resources a provision run created, persisted incrementally.
 
     Written after every successful create so an interrupted run still leaves a
-    file the teardown step can act on. The admin token is never stored; the
-    test user's token is, since the suites need it (the file is gitignored).
+    file the teardown step can act on.
     """
 
     def __init__(self, path: str, domain: str):

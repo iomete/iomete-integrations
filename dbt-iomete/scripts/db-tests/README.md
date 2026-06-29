@@ -1,7 +1,7 @@
 # dbt-iomete test provisioning
 
 The integration and functional suites need live IOMETE infrastructure: a running
-compute and the catalogs the tests query. The scripts in this directory create
+compute and the catalogs to tests query. The scripts in this directory create
 that infrastructure on demand, run the tests against it as an isolated test user,
 and then remove everything the run created.
 
@@ -67,9 +67,6 @@ the IOMETE deployment:
   different names — see the optional variables below).
 - The built-in `spark_catalog` default catalog. It always exists; the scripts
   never create or delete it, they only grant the test user access to it.
-- **User provisioning must be enabled** for the admin token. Some environments
-  lock down SCIM user creation; if yours does, provisioning cannot create the
-  test user.
 
 ### 3. Required configuration
 
@@ -134,13 +131,13 @@ Never touched:
 
 ```shell
 # 1. Provision (writes temp credentials for the run)
-python scripts/iomete_provision.py
+python scripts/db-tests/iomete_provision.py
 
 # 2. Run the suites (provisions, runs, and tears down for you)
-scripts/run-db-tests.sh
+scripts/db-tests/run-db-tests.sh
 
 # 3. Tear down explicitly, if you provisioned by hand
-python scripts/iomete_teardown.py
+python scripts/db-tests/iomete_teardown.py
 ```
 
-See [tests/README.md](../tests/README.md) for the suite-level test instructions.
+See [tests/README.md](../../tests/README.md) for the suite-level test instructions.

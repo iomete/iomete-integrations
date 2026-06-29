@@ -1,10 +1,14 @@
-"""The provision / preflight / teardown orchestration.
+"""Manage the temporary IOMETE environment used by dbt CI tests.
 
-These functions sequence the :class:`~iomete_ci.client.IometeClient` calls into
-the three lifecycle steps the test run uses. ``provision`` records everything it
-creates to a state file (incrementally, so a crash still leaves a teardownable
-file); ``teardown`` reverses it; ``preflight`` proves the test user can query.
+Each test run gets an isolated user, compute, role, and access policy. This
+module creates those resources, checks that the new user can run a basic query,
+and removes everything after the run.
+
+Created resources are written to the state file immediately after each step. If
+the process exits early, the state file still contains enough information for
+``teardown`` to clean up anything that was already created.
 """
+
 from __future__ import annotations
 
 import json
@@ -26,50 +30,51 @@ def provision(config: Config, state_path: str) -> ProvisionState:
     state = ProvisionState(state_path, config.domain)
 
     suffix = secrets.token_hex(4)
-    username = f"dbtci-{suffix}"
-    compute_name = f"dbtci-{suffix}"
+    username = f"dbtci-user-{suffix}"
+    compute_name = f"dbtci-compute-{suffix}"
     role_name = f"dbtci-role-{suffix}"
-    policy_name = f"dbtci-grant-{suffix}"
+    policy_name = f"dbtci-policy-{suffix}"
 
     password = client.create_user(username)
-    state.set_created(username=username)
-    user_token = client.login_user(username, password)
     logger.info("Created test user %r", username)
+    state.set_created(username=username)
 
+    user_token = client.login_user(username, password)
     membership_id = client.add_domain_member(username)
     state.set_created(membership_id=membership_id)
 
-    client.ensure_catalogs()
+    client.create_catalogs_if_missing()
 
-    # Grant the domain role (create compute + mint tokens) and namespace operate
-    # rights, then let the permission caches settle before the user acts on them.
+    # Grant required permissions
     client.grant_create_role(username, role_name)
     state.set_created(role_name=role_name)
-
     ns_bundle_id = client.resolve_namespace_bundle()
-    client.grant_compute_perms(username, ns_bundle_id)
+    client.grant_bundle_perms(username, ns_bundle_id)
     state.set_created(ns_bundle_id=ns_bundle_id)
-    time.sleep(5)
 
-    # The OAuth token drove the control-plane calls above; the suites and the
-    # preflight authenticate to the compute's thrift gateway with a PAT instead.
+    # Wait for syncing permissions
+    time.sleep(10)
+
+    # Create PAT for temp user for creating cluster, data policies &
+    # running queries on the cluster
     pat = client.create_access_token(user_token, f"dbtci-pat-{suffix}")
+
     state.set_test_env(
         DBT_IOMETE_TOKEN=pat,
         DBT_IOMETE_USER_NAME=username,
-        DBT_IOMETE_DOMAIN=config.domain,
     )
 
     compute_id = client.create_compute(compute_name, user_token, ns_bundle_id)
     state.set_created(compute_id=compute_id, compute_name=compute_name)
     state.set_test_env(DBT_IOMETE_LAKEHOUSE=compute_name)
-    client.start_compute(compute_id, user_token)
+
     client.wait_compute_active(compute_id, user_token)
 
-    policy_id = client.create_access_policy(policy_name, username, config.catalogs)
+    policy_id = client.create_full_access_policy(policy_name, username, config.catalogs)
     state.set_created(policy_id=policy_id)
 
     logger.info("Provisioning complete. State written to %s", state_path)
+
     return state
 
 
@@ -91,20 +96,24 @@ def preflight(config: Config, state_path: str) -> None:
     state = _read_state(state_path)
     env = state.get("test_env", {})
     username = env.get("DBT_IOMETE_USER_NAME")
-    token = env.get("DBT_IOMETE_TOKEN")  # the test user's personal access token
+    token = env.get("DBT_IOMETE_TOKEN")
     compute = env.get("DBT_IOMETE_LAKEHOUSE")
+
     if not (username and token and compute):
-        raise ProvisionError(f"State file {state_path} is missing test-user connection details.")
+        raise ProvisionError(f"State file {state_path} is missing connection details.")
 
     try:
         from pyhive import hive
     except ImportError:
-        logger.warning("pyhive not importable; falling back to a control-plane reachability check.")
-        IometeClient(config).list_catalog_names()
-        logger.info("Control-plane reachable; skipping thrift preflight.")
-        return
+        raise ProvisionError(
+            "pyhive not importable; falling back to a control-plane reachability check."
+        )
 
-    logger.info("Preflight: connecting to compute %r as %r and running SELECT 1", compute, username)
+    logger.info(
+        "Preflight: connecting to compute %r as %r and running SELECT 1",
+        compute,
+        username,
+    )
 
     def attempt() -> None:
         conn = hive.connect(
@@ -122,23 +131,30 @@ def preflight(config: Config, state_path: str) -> None:
             cursor.execute("SELECT 1")
             result = cursor.fetchall()
             if not result or result[0][0] != 1:
-                raise ProvisionError(f"Preflight SELECT 1 returned unexpected result: {result!r}")
+                raise ProvisionError(
+                    f"Preflight SELECT 1 returned unexpected result: {result!r}"
+                )
         finally:
             conn.close()
 
     # driverStatus can report ACTIVE a little before the thrift gateway accepts
     # sessions, so give the warmup a few tries before declaring failure.
-    deadline = time.time() + config.active_timeout
+    deadline = time.time() + config.active_timeout_seconds
+
     while True:
         try:
             attempt()
             logger.info("Preflight OK: the test user can query the compute.")
             return
-        except Exception as exc:  # noqa: BLE001 - retry any connect/query error during warmup
+        except Exception as exc:
             if time.time() >= deadline:
-                raise ProvisionError(f"Preflight failed after warmup retries: {exc}") from exc
-            logger.info("Preflight not ready yet (%s); retrying ...", type(exc).__name__)
-            time.sleep(config.poll_interval)
+                raise ProvisionError(
+                    f"Preflight failed after warmup retries: {exc}"
+                ) from exc
+            logger.info(
+                "Preflight not ready yet (%s); retrying ...", type(exc).__name__
+            )
+            time.sleep(config.poll_interval_seconds)
 
 
 def teardown(config: Config, state_path: str) -> None:
@@ -154,7 +170,9 @@ def teardown(config: Config, state_path: str) -> None:
 
     with open(state_path) as handle:
         state = json.load(handle)
+
     created = state.get("created", {})
+
     client = IometeClient(config)
 
     username = created.get("username")
@@ -173,7 +191,7 @@ def teardown(config: Config, state_path: str) -> None:
         client.delete_access_policy(policy_id)
     if username and ns_bundle_id:
         logger.info("Revoking compute permissions for %s", username)
-        client.revoke_bundle_actor(username, ns_bundle_id)
+        client.revoke_bundle_perms(username, ns_bundle_id)
     if username and role_name:
         logger.info("Revoking create role %s", role_name)
         client.revoke_create_role(username, role_name)
