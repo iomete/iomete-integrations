@@ -1,7 +1,11 @@
+import os
+
 from tests.integration.base import DBTIntegrationTest
 
 ALT_SCHEMA = 'dbt_experiment'
-ALT_CATALOG = 'test_dbt_multi_catalog'
+# Provisioned per run (see scripts/db-tests); falls back to the fixed name for
+# manual runs against a pre-existing catalog.
+ALT_CATALOG = os.environ.get('DBT_IOMETE_ALT_CATALOG', 'test_dbt_multi_catalog')
 ALT_CATALOG_SCHEMA = 'test_schema'
 
 class TestSnapshotStrategies(DBTIntegrationTest):

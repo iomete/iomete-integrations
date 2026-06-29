@@ -18,7 +18,7 @@ import secrets
 import time
 
 from .client import IometeClient
-from .config import Config
+from .config import Config, DEFAULT_CATALOG
 from .errors import ProvisionError
 from .state import ProvisionState
 
@@ -29,11 +29,13 @@ def provision(config: Config, state_path: str) -> ProvisionState:
     client = IometeClient(config)
     state = ProvisionState(state_path, config.domain)
 
+    dbt_prefix = "dbt"
     suffix = secrets.token_hex(4)
-    username = f"dbtci-user-{suffix}"
-    compute_name = f"dbtci-compute-{suffix}"
-    role_name = f"dbtci-role-{suffix}"
-    policy_name = f"dbtci-policy-{suffix}"
+    username = f"{dbt_prefix}-user-{suffix}"
+    compute_name = f"{dbt_prefix}-compute-{suffix}"
+    role_name = f"{dbt_prefix}-role-{suffix}"
+    policy_name = f"{dbt_prefix}-policy-{suffix}"
+    alt_catalog = f"{dbt_prefix}_multi_catalog_{suffix}"
 
     password = client.create_user(username)
     logger.info("Created test user %r", username)
@@ -43,7 +45,9 @@ def provision(config: Config, state_path: str) -> ProvisionState:
     membership_id = client.add_domain_member(username)
     state.set_created(membership_id=membership_id)
 
-    client.create_catalogs_if_missing()
+    client.create_catalog(alt_catalog)
+    state.set_created(alt_catalog=alt_catalog)
+    state.set_test_env(DBT_IOMETE_ALT_CATALOG=alt_catalog)
 
     # Grant required permissions
     client.grant_create_role(username, role_name)
@@ -70,7 +74,9 @@ def provision(config: Config, state_path: str) -> ProvisionState:
 
     client.wait_compute_active(compute_id, user_token)
 
-    policy_id = client.create_full_access_policy(policy_name, username, config.catalogs)
+    policy_id = client.create_full_access_policy(
+        policy_name, username, [DEFAULT_CATALOG, alt_catalog]
+    )
     state.set_created(policy_id=policy_id)
 
     logger.info("Provisioning complete. State written to %s", state_path)
@@ -121,7 +127,7 @@ def preflight(config: Config, state_path: str) -> None:
             host=config.host,
             port=config.port,
             lakehouse=compute,
-            database=config.catalogs[0],
+            database=DEFAULT_CATALOG,
             username=username,
             password=token,
             data_plane=config.namespace,
@@ -160,9 +166,7 @@ def preflight(config: Config, state_path: str) -> None:
 def teardown(config: Config, state_path: str) -> None:
     """Delete everything a provision run recorded, in reverse creation order.
 
-    Tolerates resources that are already gone. Deliberately does **not** touch
-    catalogs: ``test_dbt_multi_catalog`` is shared test infrastructure (created
-    only if missing, never removed) and ``spark_catalog`` is the built-in default.
+    Tolerates resources that are already gone.
     """
     if not os.path.isfile(state_path):
         logger.info("No state file at %s; nothing to tear down.", state_path)
@@ -181,6 +185,7 @@ def teardown(config: Config, state_path: str) -> None:
     ns_bundle_id = created.get("ns_bundle_id")
     compute_id = created.get("compute_id")
     policy_id = created.get("policy_id")
+    alt_catalog = created.get("alt_catalog")
 
     # Reverse creation order; each call tolerates an already-deleted resource.
     if compute_id:
@@ -189,6 +194,9 @@ def teardown(config: Config, state_path: str) -> None:
     if policy_id is not None:
         logger.info("Deleting access policy %s", policy_id)
         client.delete_access_policy(policy_id)
+    if alt_catalog:
+        logger.info("Deleting catalog %s", alt_catalog)
+        client.delete_catalog(alt_catalog)
     if username and ns_bundle_id:
         logger.info("Revoking compute permissions for %s", username)
         client.revoke_bundle_perms(username, ns_bundle_id)

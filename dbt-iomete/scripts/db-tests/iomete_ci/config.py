@@ -10,9 +10,8 @@ from dataclasses import dataclass
 
 from .errors import ProvisionError
 
-# Catalogs the suites query. spark_catalog is the built-in default catalog (never
-# created or deleted); the second is used by the multi-catalog snapshot tests.
-REQUIRED_CATALOGS = ("spark_catalog", "test_dbt_multi_catalog")
+# spark_catalog is the built-in default catalog (never created or deleted).
+DEFAULT_CATALOG = "spark_catalog"
 
 COMPUTE_ACTIVE_STATUS = "ACTIVE"
 
@@ -78,7 +77,6 @@ class Config:
     namespace: str  # a.k.a. dataplane, e.g. "spark-resources-1"
     port: int
     https: bool
-    catalogs: tuple = REQUIRED_CATALOGS
 
     # Compute-create config.
     driver_node_type: str = "driver-x-small"

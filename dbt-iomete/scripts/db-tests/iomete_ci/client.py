@@ -274,12 +274,6 @@ class IometeClient:
 
     # --- catalogs ----------------------------------------------------------
 
-    def list_catalog_names(self) -> set:
-        data = self._call("GET", "/api/v1/admin/spark/settings/catalogs") or {}
-        items = data.get("items") if isinstance(data, dict) else data
-
-        return {c.get("name") for c in (items or [])}
-
     def catalog_exists(self, name: str) -> bool:
         data = self._call(
             "GET",
@@ -307,17 +301,14 @@ class IometeClient:
 
         raise ProvisionError(f"Catalog {name!r} did not appear after creation.")
 
-    def create_catalogs_if_missing(self) -> None:
-        existing = self.list_catalog_names()
+    def delete_catalog(self, name: str) -> None:
+        logger.info("Deleting catalog %r", name)
 
-        for name in self.config.catalogs:
-            if name in existing:
-                logger.info("Catalog %r already exists.", name)
-                continue
-            self.create_catalog(name)
-
-        logger.info(
-            "All required catalogs present: %s", ", ".join(self.config.catalogs)
+        self._call(
+            "DELETE",
+            f"/api/v1/admin/spark/settings/catalogs/{name}",
+            ok=(200, 204),
+            tolerate_404=True,
         )
 
     # --- compute (v2) ----------------------------------------------------
