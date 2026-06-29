@@ -10,7 +10,8 @@ The flow (all against the existing ``DBT_IOMETE_DOMAIN`` domain):
 
 1. create a temp user and log it in (its token is what the suites connect with);
 2. add the user to the domain;
-3. ensure the required catalogs exist (create-if-missing, never deleted);
+3. create a uniquely-named catalog for the multi-catalog snapshot tests
+   (removed at teardown; ``spark_catalog`` is the built-in default);
 4. grant the user a domain role that allows creating compute, plus operate
    permissions on the data-plane namespace bundle;
 5. create the compute *as the user*, start it, and wait until it is ACTIVE;

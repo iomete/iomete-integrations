@@ -2,10 +2,7 @@
 """Remove the IOMETE resources ``iomete_provision.py`` created for a test run.
 
 Reads the provision state file and deletes everything recorded there, in reverse
-order of creation, tolerating resources that are already gone. It deliberately
-does **not** touch catalogs: ``test_dbt_multi_catalog`` is shared test
-infrastructure (created only if missing, never removed) and ``spark_catalog`` is
-the built-in default.
+order of creation, tolerating resources that are already gone.
 
 The admin token comes from the same ``DBT_IOMETE_*`` environment as provisioning
 (it is never read from the state file). Run this after the suites, including on
