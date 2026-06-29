@@ -18,7 +18,13 @@ import secrets
 import time
 
 from .client import IometeClient
-from .config import Config, DEFAULT_CATALOG
+from .config import (
+    DEFAULT_CATALOG,
+    DEFAULT_TEST_ENV_FILE,
+    Config,
+    read_env_file,
+    write_env_file,
+)
 from .errors import ProvisionError
 from .state import ProvisionState
 
@@ -47,7 +53,6 @@ def provision(config: Config, state_path: str) -> ProvisionState:
 
     client.create_catalog(alt_catalog)
     state.set_created(alt_catalog=alt_catalog)
-    state.set_test_env(DBT_IOMETE_ALT_CATALOG=alt_catalog)
 
     # Grant required permissions
     client.grant_create_role(username, role_name)
@@ -63,14 +68,8 @@ def provision(config: Config, state_path: str) -> ProvisionState:
     # running queries on the cluster
     pat = client.create_access_token(user_token, f"dbtci-pat-{suffix}")
 
-    state.set_test_env(
-        DBT_IOMETE_TOKEN=pat,
-        DBT_IOMETE_USER_NAME=username,
-    )
-
     compute_id = client.create_compute(compute_name, user_token, ns_bundle_id)
     state.set_created(compute_id=compute_id, compute_name=compute_name)
-    state.set_test_env(DBT_IOMETE_LAKEHOUSE=compute_name)
 
     client.wait_compute_active(compute_id, user_token)
 
@@ -79,34 +78,40 @@ def provision(config: Config, state_path: str) -> ProvisionState:
     )
     state.set_created(policy_id=policy_id)
 
-    logger.info("Provisioning complete. State written to %s", state_path)
+    write_env_file(
+        DEFAULT_TEST_ENV_FILE,
+        {
+            "DBT_IOMETE_TOKEN": pat,
+            "DBT_IOMETE_USER_NAME": username,
+            "DBT_IOMETE_LAKEHOUSE": compute_name,
+            "DBT_IOMETE_ALT_CATALOG": alt_catalog,
+        },
+    )
+
+    logger.info(
+        "Provisioning complete. State written to %s, test env to %s",
+        state_path,
+        DEFAULT_TEST_ENV_FILE,
+    )
 
     return state
 
 
-def _read_state(state_path: str) -> dict:
-    if not os.path.isfile(state_path):
-        raise ProvisionError(
-            f"State file {state_path} not found. Run `provision` before `preflight`."
-        )
-    with open(state_path) as handle:
-        return json.load(handle)
-
-
-def preflight(config: Config, state_path: str) -> None:
+def preflight(config: Config) -> None:
     """Open a real connection as the test user and run ``SELECT 1``.
 
     This is the closest check to what the suites do: it proves the test user can
     reach the compute and query through the same thrift path the dbt adapter uses.
     """
-    state = _read_state(state_path)
-    env = state.get("test_env", {})
+    env = read_env_file(DEFAULT_TEST_ENV_FILE)
     username = env.get("DBT_IOMETE_USER_NAME")
     token = env.get("DBT_IOMETE_TOKEN")
     compute = env.get("DBT_IOMETE_LAKEHOUSE")
 
     if not (username and token and compute):
-        raise ProvisionError(f"State file {state_path} is missing connection details.")
+        raise ProvisionError(
+            f"{DEFAULT_TEST_ENV_FILE} not found or incomplete. Run `provision` first."
+        )
 
     try:
         from pyhive import hive
@@ -168,6 +173,10 @@ def teardown(config: Config, state_path: str) -> None:
 
     Tolerates resources that are already gone.
     """
+    if os.path.isfile(DEFAULT_TEST_ENV_FILE):
+        os.remove(DEFAULT_TEST_ENV_FILE)
+        logger.info("Removed test env file %s", DEFAULT_TEST_ENV_FILE)
+
     if not os.path.isfile(state_path):
         logger.info("No state file at %s; nothing to tear down.", state_path)
         return

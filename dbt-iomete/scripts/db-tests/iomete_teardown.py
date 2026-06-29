@@ -2,11 +2,12 @@
 """Remove the IOMETE resources ``iomete_provision.py`` created for a test run.
 
 Reads the provision state file and deletes everything recorded there, in reverse
-order of creation, tolerating resources that are already gone.
+order of creation, tolerating resources that are already gone. Also removes the
+``dbt-iomete/.env.test`` credentials file the provision step wrote.
 
-The admin token comes from the same ``DBT_IOMETE_*`` environment as provisioning
-(it is never read from the state file). Run this after the suites, including on
-failure — the bash runner wires it into an ``EXIT`` trap.
+The admin token (``DBT_IOMETE_ADMIN_TOKEN``) comes from the same ``DBT_IOMETE_*``
+environment as provisioning. Run this after the suites, 
+including on failure — the bash runner wires it into an ``EXIT`` trap.
 
 The implementation lives in the ``iomete_ci`` package alongside this file; this
 script is just the command-line entrypoint.

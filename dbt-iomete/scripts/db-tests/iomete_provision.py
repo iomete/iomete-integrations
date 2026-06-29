@@ -3,8 +3,9 @@
 
 The integration and functional suites run as a short-lived *test user* against a
 freshly created compute, with full query access to the catalogs the tests use.
-This script creates that environment with an admin token and records everything
-it creates to a state file so ``iomete_teardown.py`` can remove it afterwards.
+This script creates that environment with the admin token
+(``DBT_IOMETE_ADMIN_TOKEN``) and records every resource it creates to a state
+file so ``iomete_teardown.py`` can remove it afterwards.
 
 The flow (all against the existing ``DBT_IOMETE_DOMAIN`` domain):
 
@@ -17,7 +18,9 @@ The flow (all against the existing ``DBT_IOMETE_DOMAIN`` domain):
 5. create the compute *as the user*, start it, and wait until it is ACTIVE;
 6. create a data-security access policy granting the user full access to the
    catalogs;
-7. preflight ``SELECT 1`` as the user.
+7. write the test-user credentials to ``dbt-iomete/.env.test`` (loaded by
+   pytest-dotenv) so the suites connect as the provisioned user;
+8. preflight ``SELECT 1`` as the user.
 
 State is written incrementally, so a crash mid-provision still leaves a state
 file teardown can act on. The admin token is never written to disk.
@@ -82,7 +85,7 @@ def main(argv: Optional[list] = None) -> int:
         if args.command in ("provision", "all"):
             provision(config, args.state_file)
         if args.command in ("preflight", "all"):
-            preflight(config, args.state_file)
+            preflight(config)
     except ProvisionError as exc:
         logger.error("Provisioning failed: %s", exc)
 

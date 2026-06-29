@@ -14,15 +14,11 @@ class ProvisionState:
 
     def __init__(self, path: str, domain: str):
         self.path = path
-        self.data = {"domain": domain, "created": {}, "test_env": {}}
+        self.data = {"domain": domain, "created": {}}
         self.flush()
 
     def set_created(self, **kwargs) -> None:
         self.data["created"].update({k: v for k, v in kwargs.items() if v is not None})
-        self.flush()
-
-    def set_test_env(self, **kwargs) -> None:
-        self.data["test_env"].update({k: v for k, v in kwargs.items() if v is not None})
         self.flush()
 
     def flush(self) -> None:

@@ -31,7 +31,7 @@ is then created and owned by the test user. The admin never owns test compute.
 
 ## Prerequisites
 
-### 1. An admin token (`DBT_IOMETE_TOKEN`)
+### 1. An admin token (`DBT_IOMETE_ADMIN_TOKEN`)
 
 The token must belong to a principal with administrative rights in the target
 domain. Concretely, it must be able to:
@@ -75,7 +75,7 @@ Set these as environment variables (CI) or in `dbt-iomete/.env` (local):
 | Variable             | Example               | Notes                                  |
 | -------------------- | --------------------- | -------------------------------------- |
 | `DBT_IOMETE_HOST`    | `release.iomete.cloud`| Control-plane host                     |
-| `DBT_IOMETE_TOKEN`   | _(secret)_            | Admin token (see permissions above)    |
+| `DBT_IOMETE_ADMIN_TOKEN`| _(secret)_         | Admin token (see permissions above)    |
 | `DBT_IOMETE_DOMAIN`  | `default`             | Domain to operate in                   |
 | `DBT_IOMETE_DATAPLANE`| `spark-resources-1`  | Namespace the compute runs in          |
 | `DBT_IOMETE_PORT`    | `443`                 |                                        |
@@ -93,9 +93,9 @@ Optional overrides (sensible defaults are built in):
 | `DBT_IOMETE_ACTIVE_TIMEOUT`    | `600`          | Seconds to wait for compute ACTIVE |
 | `DBT_IOMETE_POLL_INTERVAL`     | `10`           | Seconds between status polls      |
 
-> The token behind `DBT_IOMETE_TOKEN` authenticates against the control plane.
-> The temporary test user receives its own token at provision time; the suites
-> use that token, not the admin one.
+> The token behind `DBT_IOMETE_ADMIN_TOKEN` authenticates against the control
+> plane. The temporary test user receives its own token at provision time, written
+> to `.env.test` as `DBT_IOMETE_TOKEN`; the suites use that token, not the admin one.
 
 ### 4. Local tooling
 
@@ -117,10 +117,13 @@ Created at provision time, removed at teardown:
 - **Namespace-bundle permission grants** giving the user compute and namespace `USE`.
 - A temporary **compute** (uniquely named per run, created by the test user).
 - A **catalog** for the multi-catalog snapshot tests (uniquely named per run,
-  `test_dbt_multi_catalog_<suffix>`). Its name is exported as
+  `dbt_multi_catalog_<suffix>`). Its name is written to `.env.test` as
   `DBT_IOMETE_ALT_CATALOG` so the suite targets it.
 - An **access policy** granting the user full access to `spark_catalog` and the
   per-run catalog.
+- A **`.env.test` file** (at `dbt-iomete/.env.test`) holding the test-user
+  credentials (`DBT_IOMETE_TOKEN`, `DBT_IOMETE_USER_NAME`, `DBT_IOMETE_LAKEHOUSE`,
+  `DBT_IOMETE_ALT_CATALOG`); loaded by `pytest-dotenv` and removed at teardown.
 
 Never touched:
 

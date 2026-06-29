@@ -46,6 +46,39 @@ _DBT_DIR = os.path.dirname(os.path.dirname(_DB_TESTS_DIR))
 # The state file lives alongside the scripts, in scripts/db-tests/.
 DEFAULT_STATE_FILE = os.path.join(_DB_TESTS_DIR, ".provision-state.json")
 
+# Per-run test-user credentials loaded by pytest-dotenv.
+DEFAULT_TEST_ENV_FILE = os.path.join(_DBT_DIR, ".env.test")
+
+_DOTENV_FILE = os.path.join(_DBT_DIR, ".env")
+
+
+def read_env_file(path: str) -> dict:
+    """Parse a ``KEY=value`` dotenv file into a dict (empty if it does not exist)."""
+    values = {}
+
+    if not os.path.isfile(path):
+        return values
+
+    with open(path) as handle:
+        for line in handle:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            values[key.strip()] = value.strip()
+
+    return values
+
+
+def write_env_file(path: str, values: dict) -> None:
+    """Write ``values`` as a dotenv file, replacing any existing file atomically."""
+    tmp = f"{path}.tmp"
+
+    with open(tmp, "w") as handle:
+        handle.write("".join(f"{key}={value}\n" for key, value in values.items()))
+
+    os.replace(tmp, path)
+
 
 def load_dotenv() -> None:
     """Best-effort load of dbt-iomete/.env for standalone runs (CI sets env directly).
@@ -53,18 +86,8 @@ def load_dotenv() -> None:
     Only fills variables that are not already set, so an explicit environment always
     wins. The bash runner does the same; this keeps direct ``python`` invocation usable.
     """
-    env_path = os.path.join(_DBT_DIR, ".env")
-
-    if not os.path.isfile(env_path):
-        return
-
-    with open(env_path) as handle:
-        for line in handle:
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, _, value = line.partition("=")
-            os.environ.setdefault(key.strip(), value.strip())
+    for key, value in read_env_file(_DOTENV_FILE).items():
+        os.environ.setdefault(key, value)
 
 
 @dataclass
@@ -111,7 +134,7 @@ class Config:
 
         return cls(
             host=required("DBT_IOMETE_HOST"),
-            token=required("DBT_IOMETE_TOKEN"),
+            token=required("DBT_IOMETE_ADMIN_TOKEN"),
             domain=required("DBT_IOMETE_DOMAIN"),
             namespace=required("DBT_IOMETE_DATAPLANE"),
             port=int(required("DBT_IOMETE_PORT")),
