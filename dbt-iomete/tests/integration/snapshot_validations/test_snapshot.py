@@ -43,8 +43,20 @@ class TestSnapshotStrategies(DBTIntegrationTest):
 
     def _drop_schemas(self):
         for relation in getattr(self, "_snapshot_schemas", []):
+            # The Iceberg REST catalog backing the alternate-catalog snapshots
+            # does not honor DROP SCHEMA ... CASCADE: it rejects a namespace
+            # that still holds tables. Drop the tables first, then the schema.
+            for table in self._tables_in_schema(relation):
+                self.run_sql(f"DROP TABLE IF EXISTS {relation}.{table}")
             self.run_sql(f"DROP SCHEMA IF EXISTS {relation} CASCADE")
         super()._drop_schemas()
+
+    def _tables_in_schema(self, relation):
+        try:
+            rows = self.run_sql(f"SHOW TABLES IN {relation}", fetch='all')
+        except Exception:
+            return []
+        return [row[1] for row in rows]
 
     def run_snapshot_versions_and_columns(self, snapshot_name, full_snapshot_path, snapshot_vars):
         print(f"Running snapshot test for: {snapshot_name}")
