@@ -4,8 +4,6 @@ name: POST-RELEASE for dbt-iomete
 on:
   repository_dispatch:
     types: [post-release]
-    paths:
-      - 'dbt-iomete/**'
 
 jobs:
   test-pip-install:
@@ -13,6 +11,7 @@ jobs:
       # Need to provide package and module name as we are not relaying on the repository here at all
       PACKAGE: 'dbt-iomete'
       MODULE: 'dbt-iomete'
+      VERSION: '${{ github.event.client_payload.version }}'
     runs-on: ${{ matrix.os }}  # This is defined by the strategy below
     strategy:
       fail-fast: false  # Should not fail fast as we want to have a full picture which distributions are affected
@@ -26,16 +25,13 @@ jobs:
       - name: Get package version
         # This is the version that has just got release, as this workflow is triggered by the release workflow
         # This is not always the "latest" version, therefore we depend on the payload, not the latest on PyPI
-        run: echo ${{ github.event.client_payload.version }}
+        run: echo "$VERSION"
       - name: Set up python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           architecture: x64  # Default architecture most systems operate on
           python-version: ${{ matrix.python-version }}  # This is defined by the strategy above
       - name: Test package pip installation
-        env:
-          # These credentials are needed to fetch the package and its dependencies from PyPI
-          VERSION: '${{ github.event.client_payload.version }}'
         shell: bash
         run: |
           # Create and enter an empty temporary directory so that there is no conflict between local module and package
