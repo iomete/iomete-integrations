@@ -95,9 +95,8 @@ Optional overrides (sensible defaults are built in):
 | `DBT_IOMETE_EXECUTOR_NODE_TYPE`| `exec-x-small` | Compute executor node type       |
 | `DBT_IOMETE_MAX_EXECUTORS`     | `2`            | Compute autoscale ceiling        |
 | `DBT_IOMETE_LAKEHOUSE_DIR_PREFIX`| `s3://lakehouse`| Prefix for a created catalog's data |
-| `DBT_IOMETE_VOLUME_ID`         | _(unset)_      | Optional volume for the compute  |
-| `DBT_IOMETE_ACTIVE_TIMEOUT`    | `600`          | Seconds to wait for compute ACTIVE |
-| `DBT_IOMETE_POLL_INTERVAL`     | `10`           | Seconds between status polls      |
+| `DBT_IOMETE_ACTIVE_TIMEOUT_SECONDS` | `120`     | Seconds to wait for compute ACTIVE |
+| `DBT_IOMETE_POLL_INTERVAL_SECONDS`  | `10`      | Seconds between status polls      |
 
 > The token behind `DBT_IOMETE_ADMIN_TOKEN` authenticates against the control
 > plane. The temporary test user receives its own token at provision time, written
@@ -105,8 +104,8 @@ Optional overrides (sensible defaults are built in):
 
 ### 4. Local tooling
 
-- Python 3 with `requests` (and `pyhive` + thrift for the healthcheck query; the
-  healthcheck degrades to a metadata check if `pyhive` is unavailable).
+- Python 3 with `requests`, plus `pyhive` + thrift for the healthcheck query
+  (required — the healthcheck fails if `pyhive` is unavailable).
 - `tox` and the dbt test dependencies, for the suites themselves.
 - Network egress to the host on the configured port.
 

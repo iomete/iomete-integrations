@@ -14,7 +14,7 @@ defaults:
     working-directory: dbt-iomete
 
 env:
-  DBT_IOMETE_HOST: release.iomete.cloud
+  DBT_IOMETE_HOST: ${{ vars.DBT_IOMETE_HOST }}
   DBT_IOMETE_PORT: "443"
   DBT_IOMETE_HTTPS: "true"
   DBT_IOMETE_DOMAIN: default

@@ -16,7 +16,7 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Needed to push the release tag.
+      contents: read
     env:
       PYPI_TOKEN: '${{ secrets.PYPI_TOKEN }}'
     steps:
@@ -33,20 +33,7 @@ jobs:
           # Single source of truth for the released version.
           NEW_VERSION=$(grep -E '^version' dbt/adapters/iomete/__version__.py | cut -d '"' -f2)
           echo "new_version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=dbt-iomete-v${NEW_VERSION}" >> "$GITHUB_OUTPUT"
           echo "Resolved version: ${NEW_VERSION}"
-
-      - name: Ensure tag does not already exist
-        # Guards against re-publishing a version that wasn't bumped.
-        shell: bash
-        env:
-          TAG: '${{ steps.extract_version.outputs.tag }}'
-        run: |
-          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
-            echo "::error::Tag ${TAG} already exists. Bump the version in dbt/adapters/iomete/__version__.py before releasing."
-            exit 1
-          fi
-          echo "Tag ${TAG} is free."
 
       - name: Clean up dist
         run: rm -rf dist/
@@ -69,15 +56,6 @@ jobs:
       - name: Publish packages
         if: ( success() && contains(steps.check_dist.outputs.not_empty, 'true') )
         run: twine upload -u __token__ -p "$PYPI_TOKEN" dist/*
-
-      - name: Create and push release tag
-        if: ( success() && contains(steps.check_dist.outputs.not_empty, 'true') )
-        shell: bash
-        env:
-          TAG: '${{ steps.extract_version.outputs.tag }}'
-        run: |
-          git tag -a "${TAG}" -m "Release ${TAG}"
-          git push origin "${TAG}"
 
       - name: Trigger post-release workflow
         # This will check if newly published packages can be pip installed in clean environments

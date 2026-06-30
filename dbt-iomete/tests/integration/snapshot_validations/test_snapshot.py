@@ -29,6 +29,23 @@ class TestSnapshotStrategies(DBTIntegrationTest):
     def seeds(self):
         return "seeds"
 
+    def setUp(self):
+        super().setUp()
+        # Schemas created via target_schema/target_database live outside
+        # unique_schema(), so the base teardown won't drop them. Track them here.
+        self._snapshot_schemas = []
+
+    def _alt_schema(self, catalog=None):
+        """Random schema for a snapshot target, registered for teardown."""
+        schema = _rand_schema(ALT_SCHEMA_PREFIX)
+        self._snapshot_schemas.append(f"{catalog}.{schema}" if catalog else schema)
+        return schema
+
+    def _drop_schemas(self):
+        for relation in getattr(self, "_snapshot_schemas", []):
+            self.run_sql(f"DROP SCHEMA IF EXISTS {relation} CASCADE")
+        super()._drop_schemas()
+
     def run_snapshot_versions_and_columns(self, snapshot_name, full_snapshot_path, snapshot_vars):
         print(f"Running snapshot test for: {snapshot_name}")
         self.run_sql(f"DROP TABLE IF EXISTS {full_snapshot_path}")
@@ -69,28 +86,28 @@ class TestSnapshotStrategies(DBTIntegrationTest):
 
     def test_snapshot_diff_schema(self):
         snapshot_name = 'snapshot_diff_schema'
-        schema = _rand_schema(ALT_SCHEMA_PREFIX) 
+        schema = self._alt_schema()
         full_snapshot_path = f"""{{database}}.{schema}.{snapshot_name}"""
         snapshot_vars = f'{{"target_schema": "{schema}"}}'
         self.run_snapshot_versions_and_columns(snapshot_name, full_snapshot_path, snapshot_vars)
 
     def test_snapshot_diff_schema_check(self):
         snapshot_name = 'snapshot_diff_schema_check'
-        schema = _rand_schema(ALT_SCHEMA_PREFIX)
+        schema = self._alt_schema()
         full_snapshot_path = f"""{{database}}.{schema}.{snapshot_name}"""
         snapshot_vars = f'{{"target_schema": "{schema}"}}'
         self.run_snapshot_versions_and_columns(snapshot_name, full_snapshot_path, snapshot_vars)
 
     def test_snapshot_diff_catalog_schema(self):
         snapshot_name = 'snapshot_diff_catalog_schema'
-        schema = _rand_schema(ALT_SCHEMA_PREFIX)
+        schema = self._alt_schema(ALT_CATALOG)
         full_snapshot_path = f"""{ALT_CATALOG}.{schema}.{snapshot_name}"""
         snapshot_vars = f'{{"target_database": "{ALT_CATALOG}", "target_schema": "{schema}"}}'
         self.run_snapshot_versions_and_columns(snapshot_name, full_snapshot_path, snapshot_vars)
 
     def test_snapshot_diff_catalog_schema_check(self):
         snapshot_name = 'snapshot_diff_catalog_schema_check'
-        schema = _rand_schema(ALT_SCHEMA_PREFIX)
+        schema = self._alt_schema(ALT_CATALOG)
         full_snapshot_path = f"""{ALT_CATALOG}.{schema}.{snapshot_name}"""
         snapshot_vars = f'{{"target_database": "{ALT_CATALOG}", "target_schema": "{schema}"}}'
         self.run_snapshot_versions_and_columns(snapshot_name, full_snapshot_path, snapshot_vars)
