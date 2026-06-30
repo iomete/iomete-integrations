@@ -178,7 +178,7 @@ class IometeClient:
 
     # --- domain membership -------------------------------------------------
 
-    def add_domain_member(self, username: str) -> Optional[str]:
+    def add_domain_member(self, username: str) -> str:
         self._admin_call(
             "POST",
             f"/api/v1/admin/domains/{self.config.domain}/members",
@@ -202,7 +202,9 @@ class IometeClient:
             if (member.get("identity") or {}).get("value") == username:
                 return str(member.get("id"))
 
-        return None
+        raise ProvisionError(
+            f"add_domain_member({username!r}): membership not found after add."
+        )
 
     def remove_domain_member(self, membership_id: str) -> None:
         self._admin_call(

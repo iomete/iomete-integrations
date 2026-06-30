@@ -30,7 +30,7 @@ if [[ "${SKIP_PROVISION:-0}" != "1" ]]; then
   # Arrange teardown first, so an interrupted provision still gets cleaned up
   # (provision writes its state file incrementally). KEEP_RESOURCES=1 opts out.
   if [[ "${KEEP_RESOURCES:-0}" != "1" ]]; then
-    trap '"$PYTHON_BIN" "$SCRIPT_DIR/teardown.py" --state-file "$STATE_FILE" || true' EXIT
+    trap '"$PYTHON_BIN" "$SCRIPT_DIR/teardown.py" --state-file "$STATE_FILE" || echo "[run-integration-tests] WARNING: teardown failed; IOMETE resources may be leaked (state: $STATE_FILE)" >&2' EXIT
   fi
   "$PYTHON_BIN" "$SCRIPT_DIR/provision.py" provision --state-file "$STATE_FILE"
 

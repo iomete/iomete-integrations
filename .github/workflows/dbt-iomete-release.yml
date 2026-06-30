@@ -21,7 +21,7 @@ jobs:
       PYPI_TOKEN: '${{ secrets.PYPI_TOKEN }}'
     steps:
       - name: Checkout current branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up environment
         uses: ./.github/actions/dbt-iomete-setup

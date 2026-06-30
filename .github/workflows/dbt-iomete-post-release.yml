@@ -27,7 +27,7 @@ jobs:
         # This is not always the "latest" version, therefore we depend on the payload, not the latest on PyPI
         run: echo "$VERSION"
       - name: Set up python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           architecture: x64  # Default architecture most systems operate on
           python-version: ${{ matrix.python-version }}  # This is defined by the strategy above
