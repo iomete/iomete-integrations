@@ -373,24 +373,7 @@ class DBTIntegrationTest(unittest.TestCase):
                 self._drop_schema_cascade(self.alternative_database, schema)
 
     def _drop_schema_cascade(self, database, schema):
-        available_schemas = self._get_schemas()
-        if schema in available_schemas:
-            self._drop_tables_views_in_schema(database, schema)
-            self._drop_schema_named(database, schema)
-
-    def _drop_tables_views_in_schema(self, database, schema):
-        views = self._get_views_in_schema(schema)
-        for view in views:
-            self._drop_view(database,schema,view)
-        tables = self._get_tables_in_schema(schema)
-        for table in tables:
-            self._drop_table(database,schema,table)
-
-    def _drop_table(self, database, schema, table):
-        self.run_sql(f'DROP TABLE IF EXISTS {schema}.{table}')
-
-    def _drop_view(self, database, schema, view):
-        self.run_sql(f'DROP VIEW IF EXISTS {schema}.{view}')
+        self._drop_schema_named(database, schema)
 
     @property
     def project_config(self):
@@ -623,10 +606,9 @@ class DBTIntegrationTest(unittest.TestCase):
         relation_a = self._make_relation(table_a, table_a_schema, table_a_db)
         relation_b = self._make_relation(table_b, table_b_schema, table_b_db)
 
-        # Temp fix to get fresh table metadata
-        time.sleep(30)
+        columns_a, columns_b = self._wait_for_fresh_metadata(relation_a, relation_b)
 
-        self._assertTableColumnsEqual(relation_a, relation_b)
+        self._assertTableColumnsEqual(relation_a, relation_b, columns_a, columns_b)
 
         sql = self._assertTablesEqualSql(relation_a, relation_b)
         result = self.run_sql(sql, fetch='one')
@@ -641,6 +623,26 @@ class DBTIntegrationTest(unittest.TestCase):
             0,
             'num_mismatched nonzero: ' + sql
         )
+
+    def _wait_for_fresh_metadata(
+        self, relation_a, relation_b, timeout_seconds=30, interval_seconds=1
+    ):
+        """Poll until both relations' columns are visible and match in count,
+        then return them so the caller can reuse it.
+
+        Guards against post-write catalog lag without relying on a blind sleep. 
+        Column-level equality is intentionally left to the caller's assertions. 
+        On timeout, return the last fetched result so those assertions can show the actual mismatch.
+        """
+        deadline = time.monotonic() + timeout_seconds
+
+        while True:
+            cols_a = self.get_relation_columns(relation_a)
+            cols_b = self.get_relation_columns(relation_b)
+            settled = cols_a and cols_b and len(cols_a) == len(cols_b)
+            if settled or time.monotonic() >= deadline:
+                return cols_a, cols_b
+            time.sleep(interval_seconds)
 
     def _make_relation(self, identifier, schema=None, database=None):
         if schema is None:
@@ -821,9 +823,12 @@ class DBTIntegrationTest(unittest.TestCase):
             0
         )
 
-    def _assertTableColumnsEqual(self, relation_a, relation_b):
-        table_a_result = self.get_relation_columns(relation_a)
-        table_b_result = self.get_relation_columns(relation_b)
+    def _assertTableColumnsEqual(self, relation_a, relation_b,
+                                 table_a_result=None, table_b_result=None):
+        if table_a_result is None:
+            table_a_result = self.get_relation_columns(relation_a)
+        if table_b_result is None:
+            table_b_result = self.get_relation_columns(relation_b)
 
         text_types = {'text', 'character varying', 'character', 'varchar'}
 
@@ -867,18 +872,6 @@ class DBTIntegrationTest(unittest.TestCase):
                                     parsed,
                                     end.strftime(datefmt))
                                 )
-
-    def _get_views_in_schema(self, schema):
-        result = self.run_sql(f'show views in {schema}', fetch='all')
-        return [view for (_, view, _) in result]
-
-    def _get_tables_in_schema(self, schema):
-        result = self.run_sql(f'show tables in {schema}', fetch='all')
-        return [table for (_, table, _) in result]
-
-    def _get_schemas(self):
-        result = self.run_sql('SHOW DATABASES', fetch='all')
-        return [row[0] for row in result]
 
 class AnyFloat:
     """Any float. Use this in assertEqual() calls to assert that it is a float.

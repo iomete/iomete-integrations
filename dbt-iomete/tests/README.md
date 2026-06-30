@@ -24,10 +24,6 @@ Before running the tests, the following resources must exist in the target IOMET
 > tests is expected to have permission to create/edit/consume compute, create catalogs, and create
 > data policies — the same script can later be reused by CI to provision the required resources.
 
-> TODO: The functional and integration suites are slow — even run in parallel they take ~15 minutes
-> end to end. That is too long to gate every PR and the release process on. We should look into
-> reducing this.
-
 ## Set credentials
 
 ### Option A: `.env` file (recommended)
