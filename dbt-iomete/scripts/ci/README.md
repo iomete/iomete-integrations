@@ -5,12 +5,18 @@ compute and the catalogs to tests query. The scripts in this directory create
 that infrastructure on demand, run the tests against it as an isolated test user,
 and then remove everything the run created.
 
-The lifecycle is three steps:
+Use `run-integration-tests.sh` for normal runs. It provisions the test
+infrastructure, runs the suites, and tears everything down even if a test fails.
+If the resources are already provisioned and you only want to run the suites,
+set `SKIP_PROVISION=1`. To keep the resources after the run, for example to
+debug against the live compute, set `KEEP_RESOURCES=1`.
+
+Under the hood that's a three-step lifecycle:
 
 1. **Provision** (`provision.py`) — create the test user and resources,
    then emit the temporary credentials the test run needs.
-2. **Run the suites** (`run-integration-tests.sh`) — run tox as the temporary user against
-   the provisioned compute.
+2. **Run the suites** — run tox as the temporary user against the
+   provisioned compute.
 3. **Tear down** (`teardown.py`) — delete everything the provision step
    created. This runs even when the tests fail.
 

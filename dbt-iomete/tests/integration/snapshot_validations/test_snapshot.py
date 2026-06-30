@@ -1,12 +1,16 @@
 import os
+import uuid
 
 from tests.integration.base import DBTIntegrationTest
 
-ALT_SCHEMA = 'dbt_experiment'
+# Get unique schema per tests
+def _rand_schema(prefix):
+    return f"{prefix}_{uuid.uuid4().hex[:8]}"
+
+ALT_SCHEMA_PREFIX = 'dbt_experiment'
 # Provisioned per run (see scripts/ci); falls back to the fixed name for
 # manual runs against a pre-existing catalog.
 ALT_CATALOG = os.environ.get('DBT_IOMETE_ALT_CATALOG', 'test_dbt_multi_catalog')
-ALT_CATALOG_SCHEMA = 'test_schema'
 
 class TestSnapshotStrategies(DBTIntegrationTest):
     @property
@@ -65,24 +69,28 @@ class TestSnapshotStrategies(DBTIntegrationTest):
 
     def test_snapshot_diff_schema(self):
         snapshot_name = 'snapshot_diff_schema'
-        full_snapshot_path = f"""{{database}}.{ALT_SCHEMA}.{snapshot_name}"""
-        snapshot_vars = f'{{"target_schema": "{ALT_SCHEMA}"}}'
+        schema = _rand_schema(ALT_SCHEMA_PREFIX) 
+        full_snapshot_path = f"""{{database}}.{schema}.{snapshot_name}"""
+        snapshot_vars = f'{{"target_schema": "{schema}"}}'
         self.run_snapshot_versions_and_columns(snapshot_name, full_snapshot_path, snapshot_vars)
 
     def test_snapshot_diff_schema_check(self):
         snapshot_name = 'snapshot_diff_schema_check'
-        full_snapshot_path = f"""{{database}}.{ALT_SCHEMA}.{snapshot_name}"""
-        snapshot_vars = f'{{"target_schema": "{ALT_SCHEMA}"}}'
+        schema = _rand_schema(ALT_SCHEMA_PREFIX)
+        full_snapshot_path = f"""{{database}}.{schema}.{snapshot_name}"""
+        snapshot_vars = f'{{"target_schema": "{schema}"}}'
         self.run_snapshot_versions_and_columns(snapshot_name, full_snapshot_path, snapshot_vars)
 
     def test_snapshot_diff_catalog_schema(self):
         snapshot_name = 'snapshot_diff_catalog_schema'
-        full_snapshot_path = f"""{ALT_CATALOG}.{ALT_CATALOG_SCHEMA}.{snapshot_name}"""
-        snapshot_vars = f'{{"target_database": "{ALT_CATALOG}", "target_schema": "{ALT_CATALOG_SCHEMA}"}}'
+        schema = _rand_schema(ALT_SCHEMA_PREFIX)
+        full_snapshot_path = f"""{ALT_CATALOG}.{schema}.{snapshot_name}"""
+        snapshot_vars = f'{{"target_database": "{ALT_CATALOG}", "target_schema": "{schema}"}}'
         self.run_snapshot_versions_and_columns(snapshot_name, full_snapshot_path, snapshot_vars)
 
     def test_snapshot_diff_catalog_schema_check(self):
         snapshot_name = 'snapshot_diff_catalog_schema_check'
-        full_snapshot_path = f"""{ALT_CATALOG}.{ALT_CATALOG_SCHEMA}.{snapshot_name}"""
-        snapshot_vars = f'{{"target_database": "{ALT_CATALOG}", "target_schema": "{ALT_CATALOG_SCHEMA}"}}'
+        schema = _rand_schema(ALT_SCHEMA_PREFIX)
+        full_snapshot_path = f"""{ALT_CATALOG}.{schema}.{snapshot_name}"""
+        snapshot_vars = f'{{"target_database": "{ALT_CATALOG}", "target_schema": "{schema}"}}'
         self.run_snapshot_versions_and_columns(snapshot_name, full_snapshot_path, snapshot_vars)
