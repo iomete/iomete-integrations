@@ -11,6 +11,8 @@ import urllib.parse
 from typing import Optional
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from .config import (
     COMPUTE_ACTIVE_STATUS,
@@ -26,12 +28,29 @@ from .errors import ProvisionError
 logger = logging.getLogger(__name__)
 
 
+def _build_session() -> requests.Session:
+    """A requests session that retries transient failures."""
+    retry = Retry(
+        total=3,
+        backoff_factor=0.5,
+        status_forcelist=(429, 500, 502, 503, 504),
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+
+    session = requests.Session()
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+
+    return session
+
+
 class IometeClient:
     """Small wrapper around IOMETE control-plane APIs."""
 
     def __init__(self, config: Config):
         self.config = config
-        self.session = requests.Session()
+        self.session = _build_session()
 
     def _admin_call(self, method: str, path: str, **kwargs):
         return self._call(method, path, token=self.config.admin_token, **kwargs)

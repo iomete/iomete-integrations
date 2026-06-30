@@ -26,8 +26,10 @@ cd "$DBT_DIR"
 if [[ -f .env ]]; then
   echo "[run-integration-tests] loading .env"
   set -o allexport
-  # shellcheck disable=SC1091
-  source <(grep -vE '^\s*(#|$)' .env)
+  while IFS= read -r line; do
+    key="${line%%=*}"
+    [[ -n "${!key+x}" ]] || source /dev/stdin <<< "$line"
+  done < <(grep -vE '^\s*(#|$)' .env)
   set +o allexport
 fi
 
@@ -57,7 +59,11 @@ declare -a failed_suites=()
 
 run_suite() {
   local name="$1" tox_env="$2"
-  echo "::group::${name} tests" 2>/dev/null || echo "===== ${name} tests ====="
+  if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+    echo "::group::${name} tests"
+  else
+    echo "===== ${name} tests ====="
+  fi
   if tox -e "$tox_env"; then
     echo "[run-integration-tests] ${name}: PASS"
   else
@@ -65,7 +71,7 @@ run_suite() {
     failures+=1
     failed_suites+=("$name")
   fi
-  echo "::endgroup::" 2>/dev/null || true
+  if [[ -n "${GITHUB_ACTIONS:-}" ]]; then echo "::endgroup::"; fi
 }
 
 for suite in $SUITES; do

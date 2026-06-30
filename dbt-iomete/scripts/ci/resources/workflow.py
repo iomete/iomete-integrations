@@ -146,7 +146,7 @@ def healthcheck(config: Config) -> None:
         from pyhive import hive
     except ImportError:
         raise ProvisionError(
-            "pyhive not importable; falling back to a control-plane reachability check."
+            "pyhive not importable. Install it in the test environment to run the healthcheck."
         )
 
     logger.info(
