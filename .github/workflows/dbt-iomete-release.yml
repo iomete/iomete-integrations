@@ -1,9 +1,7 @@
 name: RELEASE for dbt-iomete
 
 on:
-  push:
-    tags:
-      - 'dbt-iomete-v*' # Will only run this workflow for tags starting with dbt-iomete-v, e.g. v2.0.0...
+  workflow_dispatch:
 
 defaults:
   run:
@@ -17,10 +15,10 @@ jobs:
   package-and-publish:
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Needed to push the release tag.
     env:
-      # Needed to publish to PyPI and to extract the version from the tag ref.
       PYPI_TOKEN: '${{ secrets.PYPI_TOKEN }}'
-      REF: '${{ github.ref }}'
     steps:
       - name: Checkout current branch
         uses: actions/checkout@v4
@@ -28,12 +26,27 @@ jobs:
       - name: Set up environment
         uses: ./.github/actions/dbt-iomete-setup
 
-      - name: Extract tags (versions)
-        id: extract_tag
+      - name: Extract version from source
+        id: extract_version
         shell: bash
         run: |
-          NEW_TAG=${REF##*/}                                     # dbt-iomete-v2.0.0
-          echo "new_version=${NEW_TAG##*-v}" >> $GITHUB_OUTPUT   # 2.0.0
+          # Single source of truth for the released version.
+          NEW_VERSION=$(grep -E '^version' dbt/adapters/iomete/__version__.py | cut -d '"' -f2)
+          echo "new_version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=dbt-iomete-v${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: ${NEW_VERSION}"
+
+      - name: Ensure tag does not already exist
+        # Guards against re-publishing a version that wasn't bumped.
+        shell: bash
+        env:
+          TAG: '${{ steps.extract_version.outputs.tag }}'
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "::error::Tag ${TAG} already exists. Bump the version in dbt/adapters/iomete/__version__.py before releasing."
+            exit 1
+          fi
+          echo "Tag ${TAG} is free."
 
       - name: Clean up dist
         run: rm -rf dist/
@@ -57,12 +70,21 @@ jobs:
         if: ( success() && contains(steps.check_dist.outputs.not_empty, 'true') )
         run: twine upload -u __token__ -p "$PYPI_TOKEN" dist/*
 
+      - name: Create and push release tag
+        if: ( success() && contains(steps.check_dist.outputs.not_empty, 'true') )
+        shell: bash
+        env:
+          TAG: '${{ steps.extract_version.outputs.tag }}'
+        run: |
+          git tag -a "${TAG}" -m "Release ${TAG}"
+          git push origin "${TAG}"
+
       - name: Trigger post-release workflow
         # This will check if newly published packages can be pip installed in clean environments
-        if: success()
+        if: ( success() && contains(steps.check_dist.outputs.not_empty, 'true') )
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.API_TOKEN }}
           repository: ${{ github.repository }}
           event-type: post-release
-          client-payload: '{"version": "${{ steps.extract_tag.outputs.new_version }}"}'
+          client-payload: '{"version": "${{ steps.extract_version.outputs.new_version }}"}'
