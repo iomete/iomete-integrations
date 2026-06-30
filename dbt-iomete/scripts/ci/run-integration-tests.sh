@@ -21,18 +21,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DBT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$DBT_DIR"
 
-# Load .env for local runs (CI sets the variables directly). Never overwrite an
-# already-exported variable, so CI/explicit env always wins.
-if [[ -f .env ]]; then
-  echo "[run-integration-tests] loading .env"
-  set -o allexport
-  while IFS= read -r line; do
-    key="${line%%=*}"
-    [[ -n "${!key+x}" ]] || source /dev/stdin <<< "$line"
-  done < <(grep -vE '^\s*(#|$)' .env)
-  set +o allexport
-fi
-
 SUITES="${SUITES:-integration functional}"
 PYTHON_BIN="${PYTHON_BIN:-python}"
 STATE_FILE="${STATE_FILE:-$SCRIPT_DIR/.provision-state.json}"
