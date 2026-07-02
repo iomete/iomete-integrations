@@ -32,15 +32,13 @@ GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME = "get_columns_in_relation_raw"
 KEY_TABLE_OWNER = 'Owner'
 KEY_TABLE_STATISTICS = 'Statistics'
 
-# Substrings Spark uses when a schema/database does not exist. `SHOW TABLES/VIEWS`
-# raises in that case, but dbt expects `list_relations_without_caching` to return
-# an empty list for a missing schema.
+# Substrings to check exceptions Spark`SHOW TABLES/VIEWS` raises when a schema/database does not exist.
 SCHEMA_NOT_FOUND_MESSAGES = ("SCHEMA_NOT_FOUND", "NoSuchDatabaseException")
 
 
-def _is_schema_not_found(errmsg: Optional[str]) -> bool:
-    errmsg = errmsg or ""
-    return any(token in errmsg for token in SCHEMA_NOT_FOUND_MESSAGES)
+def _is_schema_not_found(error_message: Optional[str]) -> bool:
+    error_message = error_message or ""
+    return any(token in error_message for token in SCHEMA_NOT_FOUND_MESSAGES)
 
 sentry_sdk.init(
     dsn="https://a1424d21130340e4913bd8bc1b228c12@o1140336.ingest.sentry.io/4504214031695872",
