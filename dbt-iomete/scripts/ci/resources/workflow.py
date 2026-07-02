@@ -1,0 +1,252 @@
+"""Manage the temporary IOMETE environment used by dbt CI tests.
+
+Each test run gets an isolated user, compute, role, and access policy. This
+module creates those resources, checks that the new user can run a basic query,
+and removes everything after the run.
+
+Created resources are written to the state file immediately after each step. If
+the process exits early, the state file still contains enough information for
+``teardown`` to clean up anything that was already created.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import secrets
+import time
+
+from .client import IometeClient
+from .config import (
+    COMPUTE_ACTIVE_STATUS,
+    DEFAULT_CATALOG,
+    DEFAULT_TEST_ENV_FILE,
+    Config,
+    read_env_file,
+    write_env_file,
+)
+from .errors import ProvisionError
+from .state import ProvisionState
+
+logger = logging.getLogger(__name__)
+
+
+def provision(config: Config, state_path: str) -> ProvisionState:
+    client = IometeClient(config)
+    state = ProvisionState(state_path, config.domain)
+
+    dbt_prefix = "dbt"
+    suffix = secrets.token_hex(4)
+    username = f"{dbt_prefix}-user-{suffix}"
+    compute_name = f"{dbt_prefix}-compute-{suffix}"
+    role_name = f"{dbt_prefix}-role-{suffix}"
+    policy_name = f"{dbt_prefix}-policy-{suffix}"
+    alt_catalog = f"{dbt_prefix}_multi_catalog_{suffix}"
+
+    password = client.create_user(username)
+    logger.info("Created test user %r", username)
+    state.set_created(username=username)
+
+    user_token = client.login_user(username, password)
+    membership_id = client.add_domain_member(username)
+    state.set_created(membership_id=membership_id)
+
+    client.create_catalog(alt_catalog)
+    state.set_created(alt_catalog=alt_catalog)
+
+    # Grant required permissions
+    client.grant_create_role(username, role_name)
+    state.set_created(role_name=role_name)
+    ns_bundle_id = client.resolve_namespace_bundle()
+    client.grant_bundle_perms(username, ns_bundle_id)
+    state.set_created(ns_bundle_id=ns_bundle_id)
+
+    # Wait for syncing permissions
+    time.sleep(10)
+
+    # Create PAT for temp user for creating cluster, data policies &
+    # running queries on the cluster
+    pat = client.create_access_token(user_token, f"dbtci-pat-{suffix}")
+
+    compute_id = client.create_compute(compute_name, user_token, ns_bundle_id)
+    state.set_created(compute_id=compute_id, compute_name=compute_name)
+
+    client.wait_compute_active(compute_id, user_token)
+
+    policy_id = client.create_full_access_policy(
+        policy_name, username, [DEFAULT_CATALOG, alt_catalog]
+    )
+    state.set_created(policy_id=policy_id)
+
+    write_env_file(
+        DEFAULT_TEST_ENV_FILE,
+        {
+            "DBT_IOMETE_TOKEN": pat,
+            "DBT_IOMETE_USER_NAME": username,
+            "DBT_IOMETE_LAKEHOUSE": compute_name,
+            "DBT_IOMETE_ALT_CATALOG": alt_catalog,
+        },
+    )
+
+    logger.info(
+        "Provisioning complete. State written to %s, test env to %s",
+        state_path,
+        DEFAULT_TEST_ENV_FILE,
+    )
+
+    return state
+
+
+def _ensure_compute_running(config: Config, compute_name: str, token: str) -> None:
+    """Start the compute if it has stopped and wait until it is ACTIVE."""
+
+    client = IometeClient(config)
+    compute_id = client.find_compute_id(compute_name, token)
+
+    if compute_id is None:
+        logger.warning(
+            "Compute %r not found via the control plane; skipping explicit "
+            "start and relying on connection warmup.",
+            compute_name,
+        )
+        return
+
+    status = client.get_compute_status(compute_id, token)
+
+    if status == COMPUTE_ACTIVE_STATUS:
+        logger.info("Compute %r is already ACTIVE.", compute_name)
+        return
+
+    logger.info("Compute %r is %s; starting it.", compute_name, status)
+
+    client.start_compute(compute_id, token)
+    client.wait_compute_active(compute_id, token)
+
+
+def healthcheck(config: Config) -> None:
+    """Ensure the compute is running, then run ``SELECT 1`` as the test user.
+
+    This is the closest check to what the suites do: it proves the test user can
+    reach the compute and query through the same thrift path the dbt adapter uses.
+    """
+    env = read_env_file(DEFAULT_TEST_ENV_FILE)
+    username = env.get("DBT_IOMETE_USER_NAME")
+    token = env.get("DBT_IOMETE_TOKEN")
+    compute = env.get("DBT_IOMETE_LAKEHOUSE")
+
+    if not (username and token and compute):
+        raise ProvisionError(
+            f"{DEFAULT_TEST_ENV_FILE} not found or incomplete. Run `provision` first."
+        )
+
+    _ensure_compute_running(config, compute, token)
+
+    try:
+        from pyhive import hive
+    except ImportError:
+        raise ProvisionError(
+            "pyhive not importable. Install it in the test environment to run the healthcheck."
+        )
+
+    logger.info(
+        "Healthcheck: connecting to compute %r as %r and running SELECT 1",
+        compute,
+        username,
+    )
+
+    def attempt() -> None:
+        conn = hive.connect(
+            scheme=config.scheme,
+            host=config.host,
+            port=config.port,
+            lakehouse=compute,
+            database=DEFAULT_CATALOG,
+            username=username,
+            password=token,
+            data_plane=config.namespace,
+        )
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            result = cursor.fetchall()
+            if not result or result[0][0] != 1:
+                raise ProvisionError(
+                    f"Healthcheck SELECT 1 returned unexpected result: {result!r}"
+                )
+        finally:
+            conn.close()
+
+    # driverStatus can report ACTIVE a little before the thrift gateway accepts
+    # sessions, so give the warmup a few tries before declaring failure.
+    deadline = time.time() + config.active_timeout_seconds
+
+    while True:
+        try:
+            attempt()
+            logger.info("Healthcheck OK: the test user can query the compute.")
+            return
+        except Exception as exc:
+            if time.time() >= deadline:
+                raise ProvisionError(
+                    f"Healthcheck failed after warmup retries: {exc}"
+                ) from exc
+            logger.info(
+                "Healthcheck not ready yet (%s); retrying ...", type(exc).__name__
+            )
+            time.sleep(config.poll_interval_seconds)
+
+
+def teardown(config: Config, state_path: str) -> None:
+    """Delete everything a provision run recorded, in reverse creation order.
+
+    Tolerates resources that are already gone.
+    """
+    if os.path.isfile(DEFAULT_TEST_ENV_FILE):
+        os.remove(DEFAULT_TEST_ENV_FILE)
+        logger.info("Removed test env file %s", DEFAULT_TEST_ENV_FILE)
+
+    if not os.path.isfile(state_path):
+        logger.info("No state file at %s; nothing to tear down.", state_path)
+        return
+
+    with open(state_path) as handle:
+        state = json.load(handle)
+
+    created = state.get("created", {})
+
+    client = IometeClient(config)
+
+    username = created.get("username")
+    role_name = created.get("role_name")
+    membership_id = created.get("membership_id")
+    ns_bundle_id = created.get("ns_bundle_id")
+    compute_id = created.get("compute_id")
+    policy_id = created.get("policy_id")
+    alt_catalog = created.get("alt_catalog")
+
+    # Reverse creation order; each call tolerates an already-deleted resource.
+    if compute_id:
+        logger.info("Deleting compute %s", compute_id)
+        client.delete_compute(compute_id)
+    if policy_id is not None:
+        logger.info("Deleting access policy %s", policy_id)
+        client.delete_access_policy(policy_id)
+    if alt_catalog:
+        logger.info("Deleting catalog %s", alt_catalog)
+        client.delete_catalog(alt_catalog)
+    if username and ns_bundle_id:
+        logger.info("Revoking compute permissions for %s", username)
+        client.revoke_bundle_perms(username, ns_bundle_id)
+    if username and role_name:
+        logger.info("Revoking create role %s", role_name)
+        client.revoke_create_role(username, role_name)
+    if membership_id:
+        logger.info("Removing domain membership %s", membership_id)
+        client.remove_domain_member(membership_id)
+    if username:
+        logger.info("Deleting test user %s", username)
+        client.delete_user(username)
+
+    os.remove(state_path)
+    logger.info("Teardown complete; removed state file %s", state_path)

@@ -1,8 +1,16 @@
+import os
+import uuid
+
 from tests.integration.base import DBTIntegrationTest
 
-ALT_SCHEMA = 'dbt_experiment'
-ALT_CATALOG = 'test_dbt_multi_catalog'
-ALT_CATALOG_SCHEMA = 'test_schema'
+# Get unique schema per tests
+def _rand_schema(prefix):
+    return f"{prefix}_{uuid.uuid4().hex[:8]}"
+
+ALT_SCHEMA_PREFIX = 'dbt_experiment'
+# Provisioned per run (see scripts/ci); falls back to the fixed name for
+# manual runs against a pre-existing catalog.
+ALT_CATALOG = os.environ.get('DBT_IOMETE_ALT_CATALOG', 'test_dbt_multi_catalog')
 
 class TestSnapshotStrategies(DBTIntegrationTest):
     @property
@@ -20,6 +28,35 @@ class TestSnapshotStrategies(DBTIntegrationTest):
     @property
     def seeds(self):
         return "seeds"
+
+    def setUp(self):
+        super().setUp()
+        # Schemas created via target_schema/target_database live outside
+        # unique_schema(), so the base teardown won't drop them. Track them here.
+        self._snapshot_schemas = []
+
+    def _alt_schema(self, catalog=None):
+        """Random schema for a snapshot target, registered for teardown."""
+        schema = _rand_schema(ALT_SCHEMA_PREFIX)
+        self._snapshot_schemas.append(f"{catalog}.{schema}" if catalog else schema)
+        return schema
+
+    def _drop_schemas(self):
+        for relation in getattr(self, "_snapshot_schemas", []):
+            # The Iceberg REST catalog backing the alternate-catalog snapshots
+            # does not honor DROP SCHEMA ... CASCADE: it rejects a namespace
+            # that still holds tables. Drop the tables first, then the schema.
+            for table in self._tables_in_schema(relation):
+                self.run_sql(f"DROP TABLE IF EXISTS {relation}.{table}")
+            self.run_sql(f"DROP SCHEMA IF EXISTS {relation} CASCADE")
+        super()._drop_schemas()
+
+    def _tables_in_schema(self, relation):
+        try:
+            rows = self.run_sql(f"SHOW TABLES IN {relation}", fetch='all')
+        except Exception:
+            return []
+        return [row[1] for row in rows]
 
     def run_snapshot_versions_and_columns(self, snapshot_name, full_snapshot_path, snapshot_vars):
         print(f"Running snapshot test for: {snapshot_name}")
@@ -61,24 +98,28 @@ class TestSnapshotStrategies(DBTIntegrationTest):
 
     def test_snapshot_diff_schema(self):
         snapshot_name = 'snapshot_diff_schema'
-        full_snapshot_path = f"""{{database}}.{ALT_SCHEMA}.{snapshot_name}"""
-        snapshot_vars = f'{{"target_schema": "{ALT_SCHEMA}"}}'
+        schema = self._alt_schema()
+        full_snapshot_path = f"""{{database}}.{schema}.{snapshot_name}"""
+        snapshot_vars = f'{{"target_schema": "{schema}"}}'
         self.run_snapshot_versions_and_columns(snapshot_name, full_snapshot_path, snapshot_vars)
 
     def test_snapshot_diff_schema_check(self):
         snapshot_name = 'snapshot_diff_schema_check'
-        full_snapshot_path = f"""{{database}}.{ALT_SCHEMA}.{snapshot_name}"""
-        snapshot_vars = f'{{"target_schema": "{ALT_SCHEMA}"}}'
+        schema = self._alt_schema()
+        full_snapshot_path = f"""{{database}}.{schema}.{snapshot_name}"""
+        snapshot_vars = f'{{"target_schema": "{schema}"}}'
         self.run_snapshot_versions_and_columns(snapshot_name, full_snapshot_path, snapshot_vars)
 
     def test_snapshot_diff_catalog_schema(self):
         snapshot_name = 'snapshot_diff_catalog_schema'
-        full_snapshot_path = f"""{ALT_CATALOG}.{ALT_CATALOG_SCHEMA}.{snapshot_name}"""
-        snapshot_vars = f'{{"target_database": "{ALT_CATALOG}", "target_schema": "{ALT_CATALOG_SCHEMA}"}}'
+        schema = self._alt_schema(ALT_CATALOG)
+        full_snapshot_path = f"""{ALT_CATALOG}.{schema}.{snapshot_name}"""
+        snapshot_vars = f'{{"target_database": "{ALT_CATALOG}", "target_schema": "{schema}"}}'
         self.run_snapshot_versions_and_columns(snapshot_name, full_snapshot_path, snapshot_vars)
 
     def test_snapshot_diff_catalog_schema_check(self):
         snapshot_name = 'snapshot_diff_catalog_schema_check'
-        full_snapshot_path = f"""{ALT_CATALOG}.{ALT_CATALOG_SCHEMA}.{snapshot_name}"""
-        snapshot_vars = f'{{"target_database": "{ALT_CATALOG}", "target_schema": "{ALT_CATALOG_SCHEMA}"}}'
+        schema = self._alt_schema(ALT_CATALOG)
+        full_snapshot_path = f"""{ALT_CATALOG}.{schema}.{snapshot_name}"""
+        snapshot_vars = f'{{"target_database": "{ALT_CATALOG}", "target_schema": "{schema}"}}'
         self.run_snapshot_versions_and_columns(snapshot_name, full_snapshot_path, snapshot_vars)

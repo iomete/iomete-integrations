@@ -1,0 +1,32 @@
+name: 'Set up dbt-iomete CI environment'
+description: 'Set up Python, and install dbt-iomete dependencies.'
+
+inputs:
+  python-version:
+    description: 'Python version to set up'
+    required: false
+    default: '3.12'
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Cache pip
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt', '**/dev-requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: dbt-iomete
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r dev-requirements.txt
+        pip install -r requirements.txt
