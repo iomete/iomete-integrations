@@ -233,6 +233,16 @@ class SparkConnectionManager(SQLConnectionManager):
     def rollback(self, *args, **kwargs):
         pass
 
+    def release(self) -> None:
+        # No-op on purpose. dbt calls release() after every `connection_named`
+        # scope (including once per relation during metadata listing), and the
+        # base implementation closes the connection each time. Over Thrift that
+        # forces a full reconnect (TCP + handshake + auth) on the next query.
+        # Spark has no transactions to roll back, so we keep the connection open
+        # and let dbt reuse it; `cleanup_all()` still closes everything at the
+        # end of the run.
+        pass
+
     @classmethod
     def validate_creds(cls, creds, required):
         for key in required:
