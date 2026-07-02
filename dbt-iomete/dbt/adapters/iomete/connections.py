@@ -118,8 +118,7 @@ class PyhiveConnectionWrapper(object):
         return self._cursor.fetchall()
 
     def execute(self, sql, bindings=None):
-        if sql.strip().endswith(";"):
-            sql = sql.strip()[:-1]
+        sql = sql.strip().rstrip(";\n")
 
         # Reaching into the private enumeration here is bad form,
         # but there doesn't appear to be any way to determine that
@@ -232,6 +231,16 @@ class SparkConnectionManager(SQLConnectionManager):
         pass
 
     def rollback(self, *args, **kwargs):
+        pass
+
+    def release(self) -> None:
+        # No-op on purpose. dbt calls release() after every `connection_named`
+        # scope (including once per relation during metadata listing), and the
+        # base implementation closes the connection each time. Over Thrift that
+        # forces a full reconnect (TCP + handshake + auth) on the next query.
+        # Spark has no transactions to roll back, so we keep the connection open
+        # and let dbt reuse it; `cleanup_all()` still closes everything at the
+        # end of the run.
         pass
 
     @classmethod
