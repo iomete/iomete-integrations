@@ -41,6 +41,11 @@ class SparkCredentials(Credentials):
     connect_timeout: int = 120
     server_side_parameters: Dict[str, Any] = field(default_factory=dict)
     retry_all: bool = False
+    # Parallelism for `list_relations_without_caching`, which issues one
+    # `describe extended` per relation. Decoupled from dbt's `threads` (default
+    # 1) so listing schemas with hundreds of tables stays fast without raising
+    # the global thread count used for building models.
+    list_relations_threads: int = 100
 
     _ALIASES = {
         'catalog': 'database',
@@ -49,6 +54,11 @@ class SparkCredentials(Credentials):
     def __post_init__(self):
         if self.database is not None and not self.database.strip():
             raise ValidationError(f"Invalid catalog name : {self.database}.")
+
+        if self.list_relations_threads < 1:
+            raise ValidationError(
+                f"list_relations_threads must be a positive integer, got: {self.list_relations_threads}."
+            )
         if self.database is None:
             self.database = IOMETE_DEFAULT_CATALOG_NAME
 

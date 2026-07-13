@@ -17,6 +17,7 @@ from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER
 from dbt_common.utils import AttrDict
 from dbt.adapters.events.logging import AdapterLogger
 from dbt_common.utils import executor
+from dbt_common.utils.executor import HasThreadingConfig
 import sentry_sdk
 
 from dbt.adapters.iomete.python_job import IometeSparkJobHelper
@@ -39,6 +40,15 @@ SCHEMA_NOT_FOUND_MESSAGES = ("SCHEMA_NOT_FOUND", "NoSuchDatabaseException")
 def _is_schema_not_found(error_message: Optional[str]) -> bool:
     error_message = error_message or ""
     return any(token in error_message for token in SCHEMA_NOT_FOUND_MESSAGES)
+
+
+@dataclass
+class _ListRelationsThreadingConfig(HasThreadingConfig):
+    """Config shim for dbt's `executor` factory that swaps in the listing thread
+    count so `list_relations_without_caching` fans out independently of dbt's
+    global `threads`."""
+    args: Any
+    threads: int
 
 sentry_sdk.init(
     dsn="https://a1424d21130340e4913bd8bc1b228c12@o1140336.ingest.sentry.io/4504214031695872",
@@ -121,7 +131,7 @@ class SparkAdapter(SQLAdapter):
 
         # Fetch details of each relation in parallel via `describe extended`.
         relations: List[SparkRelation] = []
-        with executor(self.config) as tpe:
+        with self._list_relations_executor() as tpe:
             futures: List[Future[SparkRelation]] = [
                 tpe.submit_connected(
                     self, identifier,
@@ -133,6 +143,17 @@ class SparkAdapter(SQLAdapter):
                 relations.append(future.result())
 
         return relations
+
+    def _list_relations_executor(self):
+        # `list_relations_without_caching` fans out one `describe extended` per
+        # relation. dbt's `threads` (default 1) would make listing a schema with
+        # hundreds of tables painfully slow, so this fan-out uses its own
+        # `list_relations_threads` (default 100) instead of the global thread
+        # count used for building models. Reuse dbt's `executor` factory by
+        # handing it a config shim whose `threads` is our listing thread count.
+        threads = self.config.credentials.list_relations_threads
+        threading_config = _ListRelationsThreadingConfig(args=self.config.args, threads=threads)
+        return executor(threading_config)
 
     def _build_relation_with_columns(
             self, schema_relation: SparkRelation, identifier: str, rel_type: RelationType

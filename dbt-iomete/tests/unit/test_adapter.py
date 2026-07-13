@@ -3,6 +3,8 @@ import unittest
 
 from dbt.exceptions import DbtProfileError
 from dbt_common.exceptions import DbtRuntimeError
+from dbt_common.context import set_invocation_context
+from dbt_common.utils.executor import MultiThreadedExecutor, SingleThreadedExecutor
 from dbt.adapters.iomete import SparkAdapter
 from .utils import config_from_parts_or_dicts
 
@@ -23,21 +25,22 @@ class TestSparkAdapter(unittest.TestCase):
             'config-version': 2
         }
 
-    def _get_target_http(self, project):
+    def _get_target_http(self, project, extra_output=None):
+        output = {
+            'type': 'iomete',
+            'host': 'iomete.com',
+            'dataplane': 'spark-resource',
+            'domain': 'default',
+            'lakehouse': 'dbt',
+            'user': 'user1',
+            'token': 'abc123',
+            'port': 443,
+            'schema': 'analytics'
+        }
+        if extra_output:
+            output.update(extra_output)
         return config_from_parts_or_dicts(project, {
-            'outputs': {
-                'test': {
-                    'type': 'iomete',
-                    'host': 'iomete.com',
-                    'dataplane': 'spark-resource',
-                    'domain': 'default',
-                    'lakehouse': 'dbt',
-                    'user': 'user1',
-                    'token': 'abc123',
-                    'port': 443,
-                    'schema': 'analytics'
-                }
-            },
+            'outputs': {'test': output},
             'target': 'test'
         })
 
@@ -153,3 +156,37 @@ class TestSparkAdapter(unittest.TestCase):
 
         with self.assertRaises(DbtRuntimeError):
             config_from_parts_or_dicts(self.project_cfg, profile)
+
+    def test_list_relations_threads_defaults_to_100(self):
+        # Listing is decoupled from dbt `threads` and defaults to 100.
+        set_invocation_context({})
+        config = self._get_target_http(self.project_cfg, {'threads': 1})
+        adapter = SparkAdapter(config, multiprocessing.get_context("spawn"))
+        self.assertEqual(config.credentials.list_relations_threads, 100)
+        with adapter._list_relations_executor() as tpe:
+            self.assertIsInstance(tpe, MultiThreadedExecutor)
+            self.assertEqual(tpe._max_workers, 100)
+
+    def test_list_relations_threads_can_be_overridden(self):
+        set_invocation_context({})
+        config = self._get_target_http(
+            self.project_cfg, {'threads': 1, 'list_relations_threads': 16}
+        )
+        adapter = SparkAdapter(config, multiprocessing.get_context("spawn"))
+        with adapter._list_relations_executor() as tpe:
+            self.assertIsInstance(tpe, MultiThreadedExecutor)
+            self.assertEqual(tpe._max_workers, 16)
+
+    def test_list_relations_threads_respects_single_threaded_flag(self):
+        set_invocation_context({})
+        config = self._get_target_http(
+            self.project_cfg, {'list_relations_threads': 16}
+        )
+        config.args.single_threaded = True
+        adapter = SparkAdapter(config, multiprocessing.get_context("spawn"))
+        with adapter._list_relations_executor() as tpe:
+            self.assertIsInstance(tpe, SingleThreadedExecutor)
+
+    def test_list_relations_threads_rejects_non_positive(self):
+        with self.assertRaises(DbtRuntimeError):
+            self._get_target_http(self.project_cfg, {'list_relations_threads': 0})
