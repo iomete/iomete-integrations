@@ -28,6 +28,12 @@ ROLE_PERMISSIONS = [
     {"service": "access_token", "actions": _ROLE_ACTIONS},
 ]
 
+# DOMAIN asset-type permissions granted on the domain bundle. Domain roles only
+# populate the user's token claims; the control plane authorizes domain-scoped
+# actions (minting a personal access token, creating a compute) through the
+# bundle-based RAS check on the DOMAIN asset, so the test user needs these here.
+DOMAIN_PERMS = ("MANAGE_ACCESS_TOKEN", "CREATE_COMPUTE")
+
 FULL_ACCESS = "ALL"
 PRIORITY_NORMAL = "NORMAL"
 

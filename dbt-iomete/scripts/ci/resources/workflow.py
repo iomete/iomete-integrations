@@ -62,6 +62,12 @@ def provision(config: Config, state_path: str) -> ProvisionState:
     client.grant_bundle_perms(username, ns_bundle_id)
     state.set_created(ns_bundle_id=ns_bundle_id)
 
+    # Domain-scoped rights (mint a personal access token, create a compute) are
+    # authorized against the DOMAIN bundle, not the domain role, so grant them there.
+    domain_bundle_id = client.resolve_domain_bundle()
+    client.grant_domain_perms(username, domain_bundle_id)
+    state.set_created(domain_bundle_id=domain_bundle_id)
+
     # Wait for syncing permissions
     time.sleep(10)
 
@@ -221,6 +227,7 @@ def teardown(config: Config, state_path: str) -> None:
     role_name = created.get("role_name")
     membership_id = created.get("membership_id")
     ns_bundle_id = created.get("ns_bundle_id")
+    domain_bundle_id = created.get("domain_bundle_id")
     compute_id = created.get("compute_id")
     policy_id = created.get("policy_id")
     alt_catalog = created.get("alt_catalog")
@@ -235,6 +242,9 @@ def teardown(config: Config, state_path: str) -> None:
     if alt_catalog:
         logger.info("Deleting catalog %s", alt_catalog)
         client.delete_catalog(alt_catalog)
+    if username and domain_bundle_id:
+        logger.info("Revoking domain permissions for %s", username)
+        client.revoke_domain_perms(username, domain_bundle_id)
     if username and ns_bundle_id:
         logger.info("Revoking compute permissions for %s", username)
         client.revoke_bundle_perms(username, ns_bundle_id)

@@ -17,6 +17,7 @@ from urllib3.util.retry import Retry
 from .config import (
     COMPUTE_ACTIVE_STATUS,
     COMPUTE_PERMS,
+    DOMAIN_PERMS,
     FULL_ACCESS,
     PRIORITY_NORMAL,
     ROLE_PERMISSIONS,
@@ -289,6 +290,58 @@ class IometeClient:
         self._admin_call(
             "DELETE",
             f"/api/v1/bundles/{ns_bundle_id}/permissions",
+            json_body={"actorType": "USER", "actorId": username},
+            ok=(200, 204),
+            tolerate_404=True,
+        )
+
+    # --- domain bundle (domain-scoped rights: token minting, compute create) ---
+
+    def resolve_domain_bundle(self) -> str:
+        """Return the id of the DOMAIN-type bundle for the configured domain.
+
+        Domain-scoped actions (minting a personal access token, creating a
+        compute) are authorized by the control plane through the bundle-based
+        RAS check on the DOMAIN asset, not through domain roles, so the test
+        user's grant has to land on this bundle.
+        """
+        domain = self.config.domain
+        # scope=DOMAIN + bundleType=DOMAIN resolves to the single bundle named
+        # "<domain>-domain-bundle" without requiring the admin to own it.
+        query = urllib.parse.urlencode(
+            {"domain": domain, "bundleType": "DOMAIN", "scope": "DOMAIN", "size": 100}
+        )
+        body = self._admin_call("GET", f"/api/v1/bundles?{query}") or {}
+        items = body.get("items") if isinstance(body, dict) else body
+
+        expected_name = f"{domain}-domain-bundle"
+        match = next(
+            (b for b in (items or []) if b.get("name") == expected_name), None
+        ) or next(
+            (b for b in (items or []) if b.get("domain") == domain), None
+        )
+
+        bundle_id = (match or {}).get("bundleId")
+        if not bundle_id:
+            raise ProvisionError(
+                f"No DOMAIN bundle found for domain {domain!r}; got: {items}"
+            )
+
+        return str(bundle_id)
+
+    def grant_domain_perms(self, username: str, domain_bundle_id: str) -> None:
+        self._admin_call(
+            "POST",
+            f"/api/v1/bundles/{domain_bundle_id}/permissions",
+            json_body={
+                "DOMAIN": {"users": {username: list(DOMAIN_PERMS)}, "groups": {}},
+            },
+        )
+
+    def revoke_domain_perms(self, username: str, domain_bundle_id: str) -> None:
+        self._admin_call(
+            "DELETE",
+            f"/api/v1/bundles/{domain_bundle_id}/permissions",
             json_body={"actorType": "USER", "actorId": username},
             ok=(200, 204),
             tolerate_404=True,
