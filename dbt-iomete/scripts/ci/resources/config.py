@@ -128,7 +128,7 @@ class Config:
     driver_node_type: str = "driver-x-small"
     executor_node_type: str = "exec-x-small"
     max_executors: int = 2
-    lakehouse_dir_prefix: str = "s3://lakehouse"
+    lakehouse_dir_prefix: str = "s3://iomete-dev"
 
     # Wait/timeout tuning.
     active_timeout_seconds: int = 120
