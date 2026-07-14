@@ -75,6 +75,12 @@ def provision(config: Config, state_path: str) -> ProvisionState:
     # running queries on the cluster
     pat = client.create_access_token(user_token, f"dbtci-pat-{suffix}")
 
+    # Ensure the compute's node types exist in this data plane (cloud catalogs
+    # may omit the x-small tier). Shared catalog entries, so they are left in
+    # place at teardown rather than risking races with concurrent runs.
+    client.ensure_node_type(config.driver_node_type)
+    client.ensure_node_type(config.executor_node_type)
+
     compute_id = client.create_compute(compute_name, user_token, ns_bundle_id)
     state.set_created(compute_id=compute_id, compute_name=compute_name)
 

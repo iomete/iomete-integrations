@@ -34,6 +34,26 @@ ROLE_PERMISSIONS = [
 # bundle-based RAS check on the DOMAIN asset, so the test user needs these here.
 DOMAIN_PERMS = ("MANAGE_ACCESS_TOKEN", "CREATE_COMPUTE")
 
+# Specs for the driver/executor node types the compute uses, so provisioning can
+# create them when a data plane's catalog omits them (cloud catalogs ship a
+# fixed set and often lack the x-small tier). Values mirror the built-in on-prem
+# x-small nodes: cpu is in millicores (1000 = 1 vCPU), memory in MB. Keyed by
+# node-type name so a matching DBT_IOMETE_*_NODE_TYPE override is creatable too.
+NODE_TYPE_SPECS = {
+    "driver-x-small": {
+        "cpu": 1000,
+        "memory": 4000,
+        "components": ["DRIVER"],
+        "description": "x-small (1vCPU/4GB)",
+    },
+    "exec-x-small": {
+        "cpu": 2000,
+        "memory": 8000,
+        "components": ["EXECUTOR"],
+        "description": "x-small (2vCPU/8GB)",
+    },
+}
+
 FULL_ACCESS = "ALL"
 PRIORITY_NORMAL = "NORMAL"
 
