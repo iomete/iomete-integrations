@@ -130,17 +130,27 @@ class SparkAdapter(SQLAdapter):
         targets.extend([(table_name, RelationType.Table) for table_name in table_names])
 
         # Fetch details of each relation in parallel via `describe extended`.
+        # A single relation may fail to describe (e.g. a broken view or a
+        # concurrently dropped table); skip it rather than failing the whole
+        # schema listing.
         relations: List[SparkRelation] = []
         with self._list_relations_executor() as tpe:
-            futures: List[Future[SparkRelation]] = [
+            futures: Dict[Future[SparkRelation], str] = {
                 tpe.submit_connected(
                     self, identifier,
                     self._build_relation_with_columns, schema_relation, identifier, rel_type
-                )
+                ): identifier
                 for identifier, rel_type in targets
-            ]
+            }
             for future in as_completed(futures):
-                relations.append(future.result())
+                identifier = futures[future]
+                try:
+                    relations.append(future.result())
+                except Exception as e:
+                    logger.warning(
+                        f"Skipping relation '{schema_relation}.{identifier}' "
+                        f"while listing schema: {e}"
+                    )
 
         return relations
 

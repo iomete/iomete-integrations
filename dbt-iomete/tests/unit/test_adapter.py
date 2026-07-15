@@ -1,6 +1,8 @@
 import multiprocessing
 import unittest
+from unittest import mock
 
+from dbt.adapters.contracts.relation import RelationType
 from dbt.exceptions import DbtProfileError
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.context import set_invocation_context
@@ -190,3 +192,38 @@ class TestSparkAdapter(unittest.TestCase):
     def test_list_relations_threads_rejects_non_positive(self):
         with self.assertRaises(DbtRuntimeError):
             self._get_target_http(self.project_cfg, {'list_relations_threads': 0})
+
+    def test_list_relations_skips_relations_that_fail_to_describe(self):
+        # A single relation failing to describe (e.g. a broken view or a table
+        # dropped mid-listing) must not fail the whole schema listing.
+        set_invocation_context({})
+        config = self._get_target_http(self.project_cfg)
+        adapter = SparkAdapter(config, multiprocessing.get_context("spawn"))
+        # Run the fan-out synchronously so the test needs no live connection.
+        config.args.single_threaded = True
+
+        schema_relation = adapter.Relation.create(schema='analytics')
+
+        def fake_execute_macro(macro_name, kwargs=None):
+            if macro_name == 'list_tables':
+                return [
+                    {'tableName': 'good_table', 'isTemporary': False},
+                    {'tableName': 'bad_table', 'isTemporary': False},
+                ]
+            if macro_name == 'list_views':
+                return []
+            raise AssertionError(f"unexpected macro {macro_name}")
+
+        def fake_build(schema_relation, identifier, rel_type):
+            if identifier == 'bad_table':
+                raise DbtRuntimeError("describe extended failed")
+            return adapter.Relation.create(
+                schema=schema_relation.schema, identifier=identifier, type=rel_type
+            )
+
+        with mock.patch.object(adapter, 'execute_macro', side_effect=fake_execute_macro), \
+                mock.patch.object(adapter, '_build_relation_with_columns', side_effect=fake_build):
+            relations = adapter.list_relations_without_caching(schema_relation)
+
+        identifiers = {relation.identifier for relation in relations}
+        self.assertEqual(identifiers, {'good_table'})
