@@ -30,6 +30,54 @@ class TestSparkMacros(unittest.TestCase):
     def test_macros_load(self):
         self.jinja_env.get_template('adapters.sql')
 
+    def _render_list_macros(self, relation):
+        """Render the list_tables/list_views macros against `relation` and return
+        the SQL each hands to `statement`, keyed by statement name. Reproduces how
+        the adapter calls these macros (the schema Relation is passed straight
+        through and interpolated into `show tables|views in {{ ... }}`)."""
+        captured = {}
+
+        def fake_statement(name, **kwargs):
+            # `{% call statement(...) %}<sql>{% endcall %}` passes the block body
+            # to the callable as the `caller` kwarg.
+            captured[name] = re.sub(r"\s+", " ", kwargs["caller"]()).strip()
+            return ""
+
+        self.default_context["statement"] = fake_statement
+        self.default_context["load_result"] = lambda name: mock.Mock()
+        self.default_context["return"] = lambda value: value
+
+        template = self.__get_template("adapters.sql")
+        template.module.iomete__list_tables(relation)
+        template.module.iomete__list_views(relation)
+        return captured
+
+    def test_list_tables_views_interpolate_schema_relation(self):
+        # PR review concern: list_tables/list_views receive the schema Relation
+        # and interpolate it directly into `show tables|views in {{ ... }}`.
+        # Reproduce it for a schema-level relation (database + schema, no
+        # identifier, as dbt passes to list_relations_without_caching) and check
+        # the resulting namespace is valid Spark and not quoted / relation-formatted.
+        from dbt.adapters.iomete import SparkRelation
+
+        schema_relation = SparkRelation.create(database="my_catalog", schema="my_schema")
+
+        captured = self._render_list_macros(schema_relation)
+
+        self.assertEqual(captured["list_tables"], "show tables in my_catalog.my_schema")
+        self.assertEqual(captured["list_views"], "show views in my_catalog.my_schema")
+
+    def test_list_tables_views_without_catalog(self):
+        # When no catalog is set the namespace is just the schema.
+        from dbt.adapters.iomete import SparkRelation
+
+        schema_relation = SparkRelation.create(schema="analytics")
+
+        captured = self._render_list_macros(schema_relation)
+
+        self.assertEqual(captured["list_tables"], "show tables in analytics")
+        self.assertEqual(captured["list_views"], "show views in analytics")
+
     def test_macros_create_table_as(self):
         template = self.__get_template('adapters.sql')
         sql = self.__run_macro(template, 'iomete__create_table_as', False, 'my_table', 'select 1').strip()
