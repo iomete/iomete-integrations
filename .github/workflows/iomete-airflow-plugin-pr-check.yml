@@ -14,14 +14,14 @@ jobs:
       fail-fast: false  # Want the full picture across Airflow versions, not just the first failure.
       matrix:
         # Keep in sync with the apache-airflow floor/ceiling and requires-python in pyproject.toml.
-        # Pair each Airflow with a Python it actually supports: Airflow 2.10.x tops out at 3.12;
-        # the default Airflow 3.2.1 image ships Python 3.13.
         include:
-          - airflow-version: '2.10.5'
+          - airflow-version: '3.2.2'
             python-version: '3.12'
-          - airflow-version: '3.2.1'
+          - airflow-version: '3.2.2'
+            python-version: '3.13'
+          - airflow-version: '3.3.0'
             python-version: '3.12'
-          - airflow-version: '3.2.1'
+          - airflow-version: '3.3.0'
             python-version: '3.13'
 
     steps:
@@ -39,7 +39,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install "apache-airflow==${{ matrix.airflow-version }}" \
             --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-${{ matrix.airflow-version }}/constraints-${{ matrix.python-version }}.txt"
-          # Installing the plugin keeps the pinned Airflow (it satisfies the >=2.10.5,<4 floor).
+          # Installing the plugin keeps the pinned Airflow (it satisfies the >=3.2.2,<4 floor).
           pip install .
           pip install pytest
           pip check
