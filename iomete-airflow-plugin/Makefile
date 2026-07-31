@@ -139,6 +139,10 @@ black-check:
 test:
 	poetry run pytest ./tests
 
+# Run tests inside Docker (supports --airflow-version, --python-version, --all)
+test-docker:
+	bash test.sh $(ARGS)
+
 # Run package test suit using pytest
 test-no-poetry:
 	python -m pytest ./tests
