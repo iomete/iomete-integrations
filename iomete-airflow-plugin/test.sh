@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-AIRFLOW_VERSION="3.3.0"
+AIRFLOW_VERSION="3.2.2"
 PYTHON_VERSION="3.12"
 RUN_ALL=false
 
