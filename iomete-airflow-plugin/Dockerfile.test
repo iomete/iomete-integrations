@@ -1,0 +1,25 @@
+ARG PYTHON_VERSION=3.12
+FROM python:${PYTHON_VERSION}-slim
+
+ARG AIRFLOW_VERSION=3.3.0
+ARG PYTHON_VERSION=3.12
+
+# Install system deps required by Apache Airflow
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc libpq-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Airflow with official constraints for reproducibility
+RUN pip install --no-cache-dir \
+    "apache-airflow==${AIRFLOW_VERSION}" \
+    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt"
+
+# Install pytest
+RUN pip install --no-cache-dir pytest
+
+# Copy plugin source and install it
+WORKDIR /opt/iomete-airflow-plugin
+COPY . .
+RUN pip install --no-cache-dir .
+
+CMD ["python", "-m", "pytest", "tests/", "-v"]
