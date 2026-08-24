@@ -298,37 +298,20 @@ class IometeClient:
 
     # --- domain bundle (domain-scoped rights: token minting, compute create) ---
 
-    def resolve_domain_bundle(self) -> str:
-        """Return the id of the DOMAIN-type bundle for the configured domain.
+    def resolve_domain_bundle(self) -> Optional[str]:
+        """Return the DOMAIN bundle id, or None when the data plane has no domain bundles.
 
-        Domain-scoped actions (minting a personal access token, creating a
-        compute) are authorized by the control plane through the bundle-based
-        RAS check on the DOMAIN asset, not through domain roles, so the test
-        user's grant has to land on this bundle.
+        The control plane only creates and reports a domain bundle when the
+        `domainLevelBundleAuthorization` feature flag is on; without it the
+        domain role alone carries the domain-scoped rights.
         """
-        domain = self.config.domain
-        # scope=DOMAIN + bundleType=DOMAIN resolves to the single bundle named
-        # "<domain>-domain-bundle" without requiring the admin to own it.
-        query = urllib.parse.urlencode(
-            {"domain": domain, "bundleType": "DOMAIN", "scope": "DOMAIN", "size": 100}
-        )
-        body = self._admin_call("GET", f"/api/v1/bundles?{query}") or {}
-        items = body.get("items") if isinstance(body, dict) else body
-
-        expected_name = f"{domain}-domain-bundle"
-        match = next(
-            (b for b in (items or []) if b.get("name") == expected_name), None
-        ) or next(
-            (b for b in (items or []) if b.get("domain") == domain), None
+        body = (
+            self._admin_call("GET", f"/api/v1/admin/domains/{self.config.domain}") or {}
         )
 
-        bundle_id = (match or {}).get("bundleId")
-        if not bundle_id:
-            raise ProvisionError(
-                f"No DOMAIN bundle found for domain {domain!r}; got: {items}"
-            )
+        bundle_id = (body.get("bundle") or {}).get("bundleId")
 
-        return str(bundle_id)
+        return str(bundle_id) if bundle_id else None
 
     def grant_domain_perms(self, username: str, domain_bundle_id: str) -> None:
         self._admin_call(

@@ -65,8 +65,9 @@ def provision(config: Config, state_path: str) -> ProvisionState:
     # Domain-scoped rights (mint a personal access token, create a compute) are
     # authorized against the DOMAIN bundle, not the domain role, so grant them there.
     domain_bundle_id = client.resolve_domain_bundle()
-    client.grant_domain_perms(username, domain_bundle_id)
-    state.set_created(domain_bundle_id=domain_bundle_id)
+    if domain_bundle_id:
+        client.grant_domain_perms(username, domain_bundle_id)
+        state.set_created(domain_bundle_id=domain_bundle_id)
 
     # Wait for syncing permissions
     time.sleep(10)
