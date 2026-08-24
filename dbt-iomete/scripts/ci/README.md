@@ -94,7 +94,7 @@ Optional overrides (sensible defaults are built in):
 | `DBT_IOMETE_DRIVER_NODE_TYPE`  | `driver-x-small`| Compute driver node type         |
 | `DBT_IOMETE_EXECUTOR_NODE_TYPE`| `exec-x-small` | Compute executor node type       |
 | `DBT_IOMETE_MAX_EXECUTORS`     | `2`            | Compute autoscale ceiling        |
-| `DBT_IOMETE_LAKEHOUSE_DIR_PREFIX`| `s3://lakehouse`| Prefix for a created catalog's data |
+| `DBT_IOMETE_LAKEHOUSE_DIR_PREFIX`| `s3://iomete-dev`| Prefix for a created catalog's data |
 | `DBT_IOMETE_ACTIVE_TIMEOUT_SECONDS` | `120`     | Seconds to wait for compute ACTIVE |
 | `DBT_IOMETE_POLL_INTERVAL_SECONDS`  | `10`      | Seconds between status polls      |
 
