@@ -28,6 +28,32 @@ ROLE_PERMISSIONS = [
     {"service": "access_token", "actions": _ROLE_ACTIONS},
 ]
 
+# DOMAIN asset-type permissions granted on the domain bundle. Domain roles only
+# populate the user's token claims; the control plane authorizes domain-scoped
+# actions (minting a personal access token, creating a compute) through the
+# bundle-based RAS check on the DOMAIN asset, so the test user needs these here.
+DOMAIN_PERMS = ("MANAGE_ACCESS_TOKEN", "CREATE_COMPUTE")
+
+# Specs for the driver/executor node types the compute uses, so provisioning can
+# create them when a data plane's catalog omits them (cloud catalogs ship a
+# fixed set and often lack the x-small tier). Values mirror the built-in on-prem
+# x-small nodes: cpu is in millicores (1000 = 1 vCPU), memory in MB. Keyed by
+# node-type name so a matching DBT_IOMETE_*_NODE_TYPE override is creatable too.
+NODE_TYPE_SPECS = {
+    "driver-x-small": {
+        "cpu": 1000,
+        "memory": 4000,
+        "components": ["DRIVER"],
+        "description": "x-small (1vCPU/4GB)",
+    },
+    "exec-x-small": {
+        "cpu": 2000,
+        "memory": 8000,
+        "components": ["EXECUTOR"],
+        "description": "x-small (2vCPU/8GB)",
+    },
+}
+
 FULL_ACCESS = "ALL"
 PRIORITY_NORMAL = "NORMAL"
 
@@ -97,12 +123,14 @@ class Config:
     namespace: str  # a.k.a. dataplane, e.g. "spark-resources-1"
     port: int
     https: bool
+    # Object storage a created catalog writes to. Deployment-specific, so there is
+    # no default worth guessing: a wrong bucket fails at catalog create.
+    lakehouse_dir_prefix: str
 
     # Compute-create config.
     driver_node_type: str = "driver-x-small"
     executor_node_type: str = "exec-x-small"
     max_executors: int = 2
-    lakehouse_dir_prefix: str = "s3://lakehouse"
 
     # Wait/timeout tuning.
     active_timeout_seconds: int = 120
@@ -136,6 +164,7 @@ class Config:
             namespace=required("DBT_IOMETE_DATAPLANE"),
             port=int(required("DBT_IOMETE_PORT")),
             https=required("DBT_IOMETE_HTTPS").lower() == "true",
+            lakehouse_dir_prefix=required("DBT_IOMETE_LAKEHOUSE_DIR_PREFIX"),
             driver_node_type=os.getenv(
                 "DBT_IOMETE_DRIVER_NODE_TYPE", cls.driver_node_type
             ),
@@ -144,9 +173,6 @@ class Config:
             ),
             max_executors=int(
                 os.getenv("DBT_IOMETE_MAX_EXECUTORS", str(cls.max_executors))
-            ),
-            lakehouse_dir_prefix=os.getenv(
-                "DBT_IOMETE_LAKEHOUSE_DIR_PREFIX", cls.lakehouse_dir_prefix
             ),
             active_timeout_seconds=int(
                 os.getenv(

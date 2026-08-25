@@ -174,6 +174,28 @@
   {{ return(load_result('list_schemas').table) }}
 {% endmacro %}
 
+{% macro list_tables(database) -%}
+  {{ return(adapter.dispatch('list_tables', 'dbt')(database)) }}
+{%- endmacro %}
+
+{% macro iomete__list_tables(database) -%}
+  {% call statement('list_tables', fetch_result=True, auto_begin=False) %}
+    show tables in {{ database }}
+  {% endcall %}
+  {{ return(load_result('list_tables').table) }}
+{% endmacro %}
+
+{% macro list_views(database) -%}
+  {{ return(adapter.dispatch('list_views', 'dbt')(database)) }}
+{%- endmacro %}
+
+{% macro iomete__list_views(database) -%}
+  {% call statement('list_views', fetch_result=True, auto_begin=False) %}
+    show views in {{ database }}
+  {% endcall %}
+  {{ return(load_result('list_views').table) }}
+{% endmacro %}
+
 {% macro iomete__current_timestamp() -%}
   current_timestamp()
 {%- endmacro %}

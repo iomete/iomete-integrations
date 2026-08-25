@@ -31,7 +31,12 @@ from dbt.contracts.graph.manifest import Manifest
 
 logger = AdapterLogger("iomete")
 
-INITIAL_ROOT = os.getcwd()
+# Derive the project root from this file's location (``<root>/tests/integration/base.py``)
+# rather than the process CWD. The test harness joins this with a relative
+# ``tests/integration/<suite>`` path, so it must be the project root. Using os.getcwd()
+# breaks when a runner (e.g. an IDE) launches tests from the test file's own directory,
+# producing a doubled path like ``.../snapshot_validations/tests/integration/snapshot_validations``.
+INITIAL_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def normalize(path):

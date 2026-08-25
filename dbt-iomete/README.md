@@ -15,13 +15,9 @@
 </p>
 <p align="center">
   <a href="https://github.com/iomete/iomete-integrations/actions/workflows/dbt-iomete-release.yml">
-    <img src="https://github.com/iomete/iomete-integrations/actions/workflows/dbt-iomete-release.yml/badge.svg?event=push" alt="Release Badge"/>
+    <img src="https://github.com/iomete/iomete-integrations/actions/workflows/dbt-iomete-release.yml/badge.svg" alt="Release Badge"/>
   </a>
 </p>
-
-**[dbt](https://www.getdbt.com/)** enables data analysts and engineers to transform their data using the same practices that software engineers use to build applications.
-
-dbt is the T in ELT. Organize, cleanse, denormalize, filter, rename, and pre-aggregate the raw data in your warehouse so that it's ready for analysis.
 
 ## dbt-iomete
 
@@ -61,6 +57,14 @@ iomete:
       schema: <database_name>
       user: "{{ env_var('DBT_IOMETE_USER_NAME') }}"
       token: "{{ env_var('DBT_IOMETE_TOKEN') }}"
+      # optional: parallelism for listing relations in a schema (default 100)
+      list_relations_threads: 100
 ```
+
+`list_relations_threads` controls how many relations dbt describes in parallel when it
+lists a schema (via `describe extended`). It is independent of the global `threads`
+setting used to build models, so you can keep `threads` low while still listing schemas
+with many tables quickly. It defaults to `100`; lower it if the data plane is under load,
+or omit it entirely to use the default.
 
 For more information, consult [the docs](https://iomete.com/docs/guides/dbt/getting-started-with-iomete-dbt).

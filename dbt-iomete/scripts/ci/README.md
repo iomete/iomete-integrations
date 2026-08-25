@@ -46,19 +46,29 @@ domain. Concretely, it must be able to:
 | ------------- | -------------------------------------------------------------------- |
 | Identity      | Create a user, and delete a user (SCIM)                              |
 | Domain        | Add and remove domain members                                       |
-| Domain roles  | Create, assign, and delete domain roles (this is how the test user is granted the rights to create compute and mint a token) |
-| Bundles       | Grant and revoke namespace-bundle permissions (compute + namespace use) |
+| Domain roles  | Create, assign, and delete domain roles                              |
+| Bundles       | Grant and revoke permissions on the namespace bundle, and on the domain bundle where the deployment has one |
+| Node types    | Look up a node type by name, and create one when the dataplane lacks it |
 | Spark settings| Create and delete a catalog, and grant a catalog to the domain      |
 | Data security | Create and delete access policies                                   |
 
 If any of these are missing the provision step fails fast with the specific
 operation that was denied.
 
+How the test user ends up with the domain-scoped rights it needs — creating a
+compute and minting a personal access token — depends on the deployment. Where
+domain-level bundle authorization is enabled, the control plane checks those
+rights against the domain bundle and the domain role only populates the user's
+token claims; everywhere else the role carries them on its own. Provisioning
+handles both without configuration: it always creates and assigns the role, then
+looks up the domain bundle and grants on it as well when the deployment reports
+one.
+
 ### 2. Platform infrastructure that must already exist
 
-The scripts assume the environment itself is set up. They do **not** create any
-of the following — these are infrastructure concerns owned by whoever operates
-the IOMETE deployment:
+The scripts assume the environment itself is set up. Apart from the one
+exception noted below, they do **not** create any of the following — these are
+infrastructure concerns owned by whoever operates the IOMETE deployment:
 
 - The IOMETE environment, reachable at `DBT_IOMETE_HOST` on the configured port.
 - The **domain** named by `DBT_IOMETE_DOMAIN` (default `default`).
@@ -68,9 +78,13 @@ the IOMETE deployment:
   domain.
 - Backing **object storage** for catalog data (the location referenced by the
   catalog's `lakehouseDir`) must be writable.
-- Valid **compute node types** in that dataplane (the defaults are
-  `driver-x-small` and `exec-x-small`; override them if your dataplane uses
-  different names — see the optional variables below).
+- **Compute node types**, but only the ones you name yourself. Provisioning
+  creates the `driver-x-small` and `exec-x-small` defaults when the dataplane's
+  catalog lacks them, because cloud dataplanes ship a fixed set that often omits
+  the x-small tier. Point `DBT_IOMETE_DRIVER_NODE_TYPE` or
+  `DBT_IOMETE_EXECUTOR_NODE_TYPE` at a different name and that node type has to
+  exist already: provisioning has no spec to build it from and fails with the
+  name it could not find.
 - The built-in `spark_catalog` default catalog. It always exists; the scripts
   never create or delete it, they only grant the test user access to it.
 
@@ -86,6 +100,7 @@ Set these as environment variables (CI) or in `dbt-iomete/.env` (local):
 | `DBT_IOMETE_DATAPLANE`| `spark-resources-1`  | Namespace the compute runs in          |
 | `DBT_IOMETE_PORT`    | `443`                 |                                        |
 | `DBT_IOMETE_HTTPS`   | `true`                |                                        |
+| `DBT_IOMETE_LAKEHOUSE_DIR_PREFIX`| `s3://iomete-dev`| Object storage a created catalog writes to |
 
 Optional overrides (sensible defaults are built in):
 
@@ -94,7 +109,6 @@ Optional overrides (sensible defaults are built in):
 | `DBT_IOMETE_DRIVER_NODE_TYPE`  | `driver-x-small`| Compute driver node type         |
 | `DBT_IOMETE_EXECUTOR_NODE_TYPE`| `exec-x-small` | Compute executor node type       |
 | `DBT_IOMETE_MAX_EXECUTORS`     | `2`            | Compute autoscale ceiling        |
-| `DBT_IOMETE_LAKEHOUSE_DIR_PREFIX`| `s3://lakehouse`| Prefix for a created catalog's data |
 | `DBT_IOMETE_ACTIVE_TIMEOUT_SECONDS` | `120`     | Seconds to wait for compute ACTIVE |
 | `DBT_IOMETE_POLL_INTERVAL_SECONDS`  | `10`      | Seconds between status polls      |
 
@@ -117,9 +131,11 @@ Created at provision time, removed at teardown:
   token** (the PAT is what the suites use to query the compute; it is removed
   with the user).
 - The test user's **domain membership**.
-- A temporary **domain role** granting the user the right to create compute and
-  mint a token, assigned to the user.
-- **Namespace-bundle permission grants** giving the user compute and namespace `USE`.
+- A temporary **domain role**, assigned to the user, covering the right to create
+  a compute and mint a token where the deployment authorizes those from the role.
+- **Namespace-bundle permission grants** giving the user compute and namespace `USE`,
+  plus the equivalent grants on the **domain bundle** (`MANAGE_ACCESS_TOKEN`,
+  `CREATE_COMPUTE`) on deployments that have one.
 - A temporary **compute** (uniquely named per run, created by the test user).
 - A **catalog** for the multi-catalog snapshot tests (uniquely named per run,
   `dbt_multi_catalog_<suffix>`), **granted to the domain** so the test
@@ -130,6 +146,12 @@ Created at provision time, removed at teardown:
 - A **`.env.test` file** (at `dbt-iomete/.env.test`) holding the test-user
   credentials (`DBT_IOMETE_TOKEN`, `DBT_IOMETE_USER_NAME`, `DBT_IOMETE_LAKEHOUSE`,
   `DBT_IOMETE_ALT_CATALOG`); loaded by `pytest-dotenv` and removed at teardown.
+
+Created but left in place:
+
+- The **node types** `driver-x-small` and `exec-x-small`, when the dataplane did
+  not already have them. They are shared across runs, so teardown leaves them
+  rather than deleting a node type another run is still using.
 
 Never touched:
 

@@ -17,7 +17,9 @@ from urllib3.util.retry import Retry
 from .config import (
     COMPUTE_ACTIVE_STATUS,
     COMPUTE_PERMS,
+    DOMAIN_PERMS,
     FULL_ACCESS,
+    NODE_TYPE_SPECS,
     PRIORITY_NORMAL,
     ROLE_PERMISSIONS,
     TOKEN_EXPIRATION_DAYS,
@@ -294,6 +296,41 @@ class IometeClient:
             tolerate_404=True,
         )
 
+    # --- domain bundle (domain-scoped rights: token minting, compute create) ---
+
+    def resolve_domain_bundle(self) -> Optional[str]:
+        """Return the DOMAIN bundle id, or None when the data plane has no domain bundles.
+
+        The control plane only creates and reports a domain bundle when the
+        `domainLevelBundleAuthorization` feature flag is on; without it the
+        domain role alone carries the domain-scoped rights.
+        """
+        body = (
+            self._admin_call("GET", f"/api/v1/admin/domains/{self.config.domain}") or {}
+        )
+
+        bundle_id = (body.get("bundle") or {}).get("bundleId")
+
+        return str(bundle_id) if bundle_id else None
+
+    def grant_domain_perms(self, username: str, domain_bundle_id: str) -> None:
+        self._admin_call(
+            "POST",
+            f"/api/v1/bundles/{domain_bundle_id}/permissions",
+            json_body={
+                "DOMAIN": {"users": {username: list(DOMAIN_PERMS)}, "groups": {}},
+            },
+        )
+
+    def revoke_domain_perms(self, username: str, domain_bundle_id: str) -> None:
+        self._admin_call(
+            "DELETE",
+            f"/api/v1/bundles/{domain_bundle_id}/permissions",
+            json_body={"actorType": "USER", "actorId": username},
+            ok=(200, 204),
+            tolerate_404=True,
+        )
+
     # --- catalogs ----------------------------------------------------------
 
     def catalog_exists(self, name: str) -> bool:
@@ -356,6 +393,57 @@ class IometeClient:
             ok=(200, 204),
             tolerate_404=True,
         )
+
+    # --- node types ------------------------------------------------------
+
+    def node_type_exists(self, name: str) -> bool:
+        data = self._admin_call(
+            "GET",
+            f"/api/v1/admin/node-types/name/{name}",
+            tolerate_404=True,
+        )
+
+        return bool(data)
+
+    def create_node_type(self, name: str, spec: dict) -> None:
+        logger.info("Creating node type %r", name)
+
+        self._admin_call(
+            "POST",
+            "/api/v1/admin/node-types/",
+            json_body={
+                "name": name,
+                "description": spec.get("description", name),
+                "cpu": spec["cpu"],
+                "memory": spec["memory"],
+                "spot": spec.get("spot", False),
+                "components": spec["components"],
+            },
+            # 409: a concurrent run created it first — treat as already present.
+            ok=(200, 201, 409),
+        )
+
+    def ensure_node_type(self, name: str) -> None:
+        """Create the node type if the data plane's catalog does not have it.
+
+        Cloud data planes ship a fixed node catalog that may omit the x-small
+        tier the tests request, so create it from the built-in spec. Raises if
+        the type is missing and no spec is known (e.g. a custom override name).
+        """
+        if self.node_type_exists(name):
+            return
+
+        spec = NODE_TYPE_SPECS.get(name)
+        if spec is None:
+            raise ProvisionError(
+                f"Node type {name!r} is not available in this data plane and no "
+                f"built-in spec exists to create it. Point "
+                f"DBT_IOMETE_DRIVER_NODE_TYPE / DBT_IOMETE_EXECUTOR_NODE_TYPE at "
+                f"an existing node type, or add a spec to NODE_TYPE_SPECS."
+            )
+
+        logger.info("Node type %r missing in this data plane; creating it.", name)
+        self.create_node_type(name, spec)
 
     # --- compute (v2) ----------------------------------------------------
 

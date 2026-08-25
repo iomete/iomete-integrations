@@ -1,4 +1,4 @@
-from concurrent.futures import Future
+from concurrent.futures import Future, as_completed
 from dataclasses import dataclass
 from typing import Optional, List, Dict, Any, Union, Iterable, Type
 import agate
@@ -17,19 +17,37 @@ from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER
 from dbt_common.utils import AttrDict
 from dbt.adapters.events.logging import AdapterLogger
 from dbt_common.utils import executor
+from dbt_common.utils.executor import HasThreadingConfig
 import sentry_sdk
 
 from dbt.adapters.iomete.python_job import IometeSparkJobHelper
-from dbt.adapters.iomete.schema_service import SchemaService
 
 logger = AdapterLogger("iomete")
 
 LIST_SCHEMAS_MACRO_NAME = 'list_schemas'
+LIST_TABLES_MACRO_NAME = 'list_tables'
+LIST_VIEWS_MACRO_NAME = 'list_views'
 FETCH_TBL_PROPERTIES_MACRO_NAME = 'fetch_tbl_properties'
 GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME = "get_columns_in_relation_raw"
 
 KEY_TABLE_OWNER = 'Owner'
 KEY_TABLE_STATISTICS = 'Statistics'
+
+# Substrings in the errors Spark raises from `SHOW TABLES/VIEWS` when the schema does not exist.
+SCHEMA_NOT_FOUND_MESSAGES = ("SCHEMA_NOT_FOUND", "NoSuchDatabaseException")
+
+
+def _is_schema_not_found(error_message: Optional[str]) -> bool:
+    error_message = error_message or ""
+    return any(token in error_message for token in SCHEMA_NOT_FOUND_MESSAGES)
+
+
+@dataclass
+class _ListRelationsThreadingConfig(HasThreadingConfig):
+    """Shim for dbt's `executor` factory, which sizes its pool from `threads`."""
+    args: Any
+    threads: int
+
 
 sentry_sdk.init(
     dsn="https://a1424d21130340e4913bd8bc1b228c12@o1140336.ingest.sentry.io/4504214031695872",
@@ -58,10 +76,6 @@ class SparkAdapter(SQLAdapter):
     Column = SparkColumn
     ConnectionManager = SparkConnectionManager
     AdapterSpecificConfigs = SparkConfig
-
-    def __init__(self, config, mp_context=None):
-        super().__init__(config, mp_context)
-        self.schema_service = SchemaService(credentials=config.credentials)
 
     @classmethod
     def date_function(cls) -> str:
@@ -94,28 +108,90 @@ class SparkAdapter(SQLAdapter):
     def list_relations_without_caching(
             self, schema_relation: SparkRelation
     ) -> List[SparkRelation]:
-        tables = self.schema_service.get_tables_by_namespace(schema_relation.database, schema_relation.schema)
+        # `SHOW TABLES` may list both tables and views; `SHOW VIEWS` lists only
+        # views, so the view name set tells us how to type each relation.
+        # `SHOW TABLES/VIEWS IN <schema>` raises when the schema does not exist,
+        # but dbt expects an empty list for a missing schema (it calls this while
+        # caching schemas it is about to create).
+        try:
+            table_rows = self.execute_macro(LIST_TABLES_MACRO_NAME, kwargs={"database": schema_relation})
+            view_rows = self.execute_macro(LIST_VIEWS_MACRO_NAME, kwargs={"database": schema_relation})
+        except DbtRuntimeError as e:
+            if _is_schema_not_found(getattr(e, "msg", str(e))):
+                return []
+            raise
 
-        relations = []
-        for table in tables:
-            rel_type = RelationType.Table
-            if table['type'] and table['type'].lower() == 'view':
-                rel_type = RelationType.View
+        view_names = {row["viewName"] for row in view_rows if not row["isTemporary"]}
+        table_names = {row["tableName"]
+                       for row in table_rows if not row["isTemporary"] and row["tableName"] not in view_names}
 
-            provider = table['provider'].lower() if table['provider'] else None
+        targets = [(view_name, RelationType.View) for view_name in view_names]
+        targets.extend([(table_name, RelationType.Table) for table_name in table_names])
 
-            relation = self.Relation.create(
-                database=table['catalog'],
-                schema=table['namespace'],
-                identifier=table['name'],
-                type=rel_type,
-                provider=provider,
-                is_iceberg=provider == "iceberg",
-                table_fields=table["columns"],
-            )
-            relations.append(relation)
+        # Fetch details of each relation in parallel via `describe extended`.
+        # A single relation may fail to describe (e.g. a broken view or a
+        # concurrently dropped table); skip it rather than failing the whole
+        # schema listing.
+        relations: List[SparkRelation] = []
+        with self._list_relations_executor() as tpe:
+            futures: Dict[Future[SparkRelation], str] = {
+                tpe.submit_connected(
+                    self, identifier,
+                    self._build_relation_with_columns, schema_relation, identifier, rel_type
+                ): identifier
+                for identifier, rel_type in targets
+            }
+            for future in as_completed(futures):
+                identifier = futures[future]
+                try:
+                    relations.append(future.result())
+                except Exception as e:
+                    logger.warning(
+                        f"Skipping relation '{schema_relation}.{identifier}' "
+                        f"while listing schema: {e}"
+                    )
 
         return relations
+
+    def _list_relations_executor(self):
+        threading_config = _ListRelationsThreadingConfig(
+            args=self.config.args,
+            threads=self.config.credentials.list_relations_threads,
+        )
+        return executor(threading_config)
+
+    def _build_relation_with_columns(
+            self, schema_relation: SparkRelation, identifier: str, rel_type: RelationType
+    ) -> SparkRelation:
+        relation = self.Relation.create(
+            database=schema_relation.database,
+            schema=schema_relation.schema,
+            identifier=identifier,
+            type=rel_type,
+        )
+        raw_rows: AttrDict = self.execute_macro(
+            GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME, kwargs={"relation": relation}
+        )
+        columns = self.parse_describe_extended(relation, raw_rows)
+        provider = self._get_provider_from_describe(raw_rows)
+
+        return self.Relation.create(
+            database=schema_relation.database,
+            schema=schema_relation.schema,
+            identifier=identifier,
+            type=rel_type,
+            provider=provider,
+            is_iceberg=provider == "iceberg",
+            table_fields=columns,
+        )
+
+    @staticmethod
+    def _get_provider_from_describe(raw_rows: AttrDict) -> Optional[str]:
+        for row in raw_rows:
+            if (row["col_name"] or "").strip() == "Provider":
+                data_type = row["data_type"]
+                return data_type.strip().lower() if data_type else None
+        return None
 
     def get_relation(
             self, database: str, schema: str, identifier: str

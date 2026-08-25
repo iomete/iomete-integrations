@@ -13,7 +13,6 @@ from dbt.tests.adapter.basic.test_adapter_methods import BaseAdapterMethod
 from dbt.tests.adapter.basic.test_generic_tests import BaseGenericTests
 
 
-@pytest.mark.skip(reason="TODO: Failing due to core API caching")
 class TestSimpleMaterializations(BaseSimpleMaterializations):
     pass
 
@@ -50,6 +49,6 @@ class TestSnapshotTimestamp(BaseSnapshotTimestamp):
     pass
 
 
-@pytest.mark.skip(reason="TODO: Failing due to core API 404 handling for non-existing schema")
+@pytest.mark.skip(reason="TODO: get_columns_in_relation on a not-yet-built model fails at compile time")
 class TestBaseAdapterMethod(BaseAdapterMethod):
     pass

@@ -1,3 +1,8 @@
+## dbt-iomete 1.8.2 (Jul 16, 2026)
+- Removed the IOMETE schema-service HTTP dependency for relation metadata. `list_relations_without_caching` now reads metadata directly from Spark — `show tables`/`show views` plus a `describe extended` per relation — instead of calling the schema-service REST API.
+- The per-relation `describe extended` calls fan out in parallel, controlled by the new `list_relations_threads` profile setting (default 100), which is independent of dbt's global `threads`. This keeps listing fast for schemas with many tables without raising the thread count used to build models.
+- The `IOMETE_DBT_SCHEMA_TIMEOUT_SECONDS` environment variable (added in 1.8.1) is no longer used and can be removed from your environment, since the schema-service HTTP call it configured has been removed.
+
 ## dbt-iomete 1.8.1 (Jun 25, 2026)
 - Increased the schema-service HTTP request timeout from 10s to 120s so large catalogs no longer time out while fetching metadata. The value is overridable via the `IOMETE_DBT_SCHEMA_TIMEOUT_SECONDS` environment variable.
 

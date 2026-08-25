@@ -31,6 +31,10 @@ from .state import ProvisionState
 
 logger = logging.getLogger(__name__)
 
+# The control plane propagates permission grants asynchronously; minting the
+# access token below fails if it runs before they land.
+PERMISSION_SYNC_SECONDS = 15
+
 
 def provision(config: Config, state_path: str) -> ProvisionState:
     client = IometeClient(config)
@@ -62,12 +66,24 @@ def provision(config: Config, state_path: str) -> ProvisionState:
     client.grant_bundle_perms(username, ns_bundle_id)
     state.set_created(ns_bundle_id=ns_bundle_id)
 
-    # Wait for syncing permissions
-    time.sleep(10)
+    # Domain-scoped rights (mint a personal access token, create a compute) are
+    # authorized against the DOMAIN bundle, not the domain role, so grant them there.
+    domain_bundle_id = client.resolve_domain_bundle()
+    if domain_bundle_id:
+        client.grant_domain_perms(username, domain_bundle_id)
+        state.set_created(domain_bundle_id=domain_bundle_id)
+
+    time.sleep(PERMISSION_SYNC_SECONDS)
 
     # Create PAT for temp user for creating cluster, data policies &
     # running queries on the cluster
     pat = client.create_access_token(user_token, f"dbtci-pat-{suffix}")
+
+    # Ensure the compute's node types exist in this data plane (cloud catalogs
+    # may omit the x-small tier). Shared catalog entries, so they are left in
+    # place at teardown rather than risking races with concurrent runs.
+    client.ensure_node_type(config.driver_node_type)
+    client.ensure_node_type(config.executor_node_type)
 
     compute_id = client.create_compute(compute_name, user_token, ns_bundle_id)
     state.set_created(compute_id=compute_id, compute_name=compute_name)
@@ -221,6 +237,7 @@ def teardown(config: Config, state_path: str) -> None:
     role_name = created.get("role_name")
     membership_id = created.get("membership_id")
     ns_bundle_id = created.get("ns_bundle_id")
+    domain_bundle_id = created.get("domain_bundle_id")
     compute_id = created.get("compute_id")
     policy_id = created.get("policy_id")
     alt_catalog = created.get("alt_catalog")
@@ -235,6 +252,9 @@ def teardown(config: Config, state_path: str) -> None:
     if alt_catalog:
         logger.info("Deleting catalog %s", alt_catalog)
         client.delete_catalog(alt_catalog)
+    if username and domain_bundle_id:
+        logger.info("Revoking domain permissions for %s", username)
+        client.revoke_domain_perms(username, domain_bundle_id)
     if username and ns_bundle_id:
         logger.info("Revoking compute permissions for %s", username)
         client.revoke_bundle_perms(username, ns_bundle_id)

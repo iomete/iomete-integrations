@@ -2,8 +2,11 @@ name: POST-RELEASE for dbt-iomete
 # The post-release test checks if one can pip install the just released package in a clean virtual environment.
 
 on:
-  repository_dispatch:
-    types: [post-release]
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
 
 jobs:
   test-pip-install:
@@ -11,7 +14,7 @@ jobs:
       # Need to provide package and module name as we are not relaying on the repository here at all
       PACKAGE: 'dbt-iomete'
       MODULE: 'dbt-iomete'
-      VERSION: '${{ github.event.client_payload.version }}'
+      VERSION: '${{ inputs.version }}'
     runs-on: ${{ matrix.os }}  # This is defined by the strategy below
     strategy:
       fail-fast: false  # Should not fail fast as we want to have a full picture which distributions are affected
@@ -23,8 +26,6 @@ jobs:
         python-version: [ '3.10', '3.11', '3.12' ]   # Order here does not matter if we do not fail-fast above.
     steps:
       - name: Get package version
-        # This is the version that has just got release, as this workflow is triggered by the release workflow
-        # This is not always the "latest" version, therefore we depend on the payload, not the latest on PyPI
         run: echo "$VERSION"
       - name: Set up python
         uses: actions/setup-python@v6

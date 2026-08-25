@@ -41,6 +41,9 @@ class SparkCredentials(Credentials):
     connect_timeout: int = 120
     server_side_parameters: Dict[str, Any] = field(default_factory=dict)
     retry_all: bool = False
+    # Separate from dbt's `threads`: listing fans out one `describe extended`
+    # per relation, and raising `threads` would also widen model builds.
+    list_relations_threads: int = 100
 
     _ALIASES = {
         'catalog': 'database',
@@ -49,6 +52,11 @@ class SparkCredentials(Credentials):
     def __post_init__(self):
         if self.database is not None and not self.database.strip():
             raise ValidationError(f"Invalid catalog name : {self.database}.")
+
+        if self.list_relations_threads < 1:
+            raise ValidationError(
+                f"list_relations_threads must be a positive integer, got: {self.list_relations_threads}."
+            )
         if self.database is None:
             self.database = IOMETE_DEFAULT_CATALOG_NAME
 
@@ -118,8 +126,7 @@ class PyhiveConnectionWrapper(object):
         return self._cursor.fetchall()
 
     def execute(self, sql, bindings=None):
-        if sql.strip().endswith(";"):
-            sql = sql.strip()[:-1]
+        sql = sql.strip().rstrip(";\n")
 
         # Reaching into the private enumeration here is bad form,
         # but there doesn't appear to be any way to determine that
