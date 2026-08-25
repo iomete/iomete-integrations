@@ -31,6 +31,10 @@ from .state import ProvisionState
 
 logger = logging.getLogger(__name__)
 
+# The control plane propagates permission grants asynchronously; minting the
+# access token below fails if it runs before they land.
+PERMISSION_SYNC_SECONDS = 10
+
 
 def provision(config: Config, state_path: str) -> ProvisionState:
     client = IometeClient(config)
@@ -69,8 +73,7 @@ def provision(config: Config, state_path: str) -> ProvisionState:
         client.grant_domain_perms(username, domain_bundle_id)
         state.set_created(domain_bundle_id=domain_bundle_id)
 
-    # Wait for syncing permissions
-    time.sleep(10)
+    time.sleep(PERMISSION_SYNC_SECONDS)
 
     # Create PAT for temp user for creating cluster, data policies &
     # running queries on the cluster
