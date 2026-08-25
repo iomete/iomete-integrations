@@ -41,10 +41,8 @@ class SparkCredentials(Credentials):
     connect_timeout: int = 120
     server_side_parameters: Dict[str, Any] = field(default_factory=dict)
     retry_all: bool = False
-    # Parallelism for `list_relations_without_caching`, which issues one
-    # `describe extended` per relation. Decoupled from dbt's `threads` (default
-    # 1) so listing schemas with hundreds of tables stays fast without raising
-    # the global thread count used for building models.
+    # Separate from dbt's `threads`: listing fans out one `describe extended`
+    # per relation, and raising `threads` would also widen model builds.
     list_relations_threads: int = 100
 
     _ALIASES = {
