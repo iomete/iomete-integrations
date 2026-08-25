@@ -19,6 +19,7 @@ env:
   DBT_IOMETE_HTTPS: "true"
   DBT_IOMETE_DOMAIN: default
   DBT_IOMETE_DATAPLANE: spark-resources-1
+  DBT_IOMETE_LAKEHOUSE_DIR_PREFIX: ${{ vars.DBT_IOMETE_LAKEHOUSE_DIR_PREFIX }}
 
 jobs:
   unit:

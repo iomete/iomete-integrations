@@ -123,12 +123,14 @@ class Config:
     namespace: str  # a.k.a. dataplane, e.g. "spark-resources-1"
     port: int
     https: bool
+    # Object storage a created catalog writes to. Deployment-specific, so there is
+    # no default worth guessing: a wrong bucket fails at catalog create.
+    lakehouse_dir_prefix: str
 
     # Compute-create config.
     driver_node_type: str = "driver-x-small"
     executor_node_type: str = "exec-x-small"
     max_executors: int = 2
-    lakehouse_dir_prefix: str = "s3://iomete-dev"
 
     # Wait/timeout tuning.
     active_timeout_seconds: int = 120
@@ -162,6 +164,7 @@ class Config:
             namespace=required("DBT_IOMETE_DATAPLANE"),
             port=int(required("DBT_IOMETE_PORT")),
             https=required("DBT_IOMETE_HTTPS").lower() == "true",
+            lakehouse_dir_prefix=required("DBT_IOMETE_LAKEHOUSE_DIR_PREFIX"),
             driver_node_type=os.getenv(
                 "DBT_IOMETE_DRIVER_NODE_TYPE", cls.driver_node_type
             ),
@@ -170,9 +173,6 @@ class Config:
             ),
             max_executors=int(
                 os.getenv("DBT_IOMETE_MAX_EXECUTORS", str(cls.max_executors))
-            ),
-            lakehouse_dir_prefix=os.getenv(
-                "DBT_IOMETE_LAKEHOUSE_DIR_PREFIX", cls.lakehouse_dir_prefix
             ),
             active_timeout_seconds=int(
                 os.getenv(

@@ -100,6 +100,7 @@ Set these as environment variables (CI) or in `dbt-iomete/.env` (local):
 | `DBT_IOMETE_DATAPLANE`| `spark-resources-1`  | Namespace the compute runs in          |
 | `DBT_IOMETE_PORT`    | `443`                 |                                        |
 | `DBT_IOMETE_HTTPS`   | `true`                |                                        |
+| `DBT_IOMETE_LAKEHOUSE_DIR_PREFIX`| `s3://iomete-dev`| Object storage a created catalog writes to |
 
 Optional overrides (sensible defaults are built in):
 
@@ -108,7 +109,6 @@ Optional overrides (sensible defaults are built in):
 | `DBT_IOMETE_DRIVER_NODE_TYPE`  | `driver-x-small`| Compute driver node type         |
 | `DBT_IOMETE_EXECUTOR_NODE_TYPE`| `exec-x-small` | Compute executor node type       |
 | `DBT_IOMETE_MAX_EXECUTORS`     | `2`            | Compute autoscale ceiling        |
-| `DBT_IOMETE_LAKEHOUSE_DIR_PREFIX`| `s3://iomete-dev`| Prefix for a created catalog's data |
 | `DBT_IOMETE_ACTIVE_TIMEOUT_SECONDS` | `120`     | Seconds to wait for compute ACTIVE |
 | `DBT_IOMETE_POLL_INTERVAL_SECONDS`  | `10`      | Seconds between status polls      |
 
