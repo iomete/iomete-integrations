@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 # The control plane propagates permission grants asynchronously; minting the
 # access token below fails if it runs before they land.
-PERMISSION_SYNC_SECONDS = 10
+PERMISSION_SYNC_SECONDS = 15
 
 
 def provision(config: Config, state_path: str) -> ProvisionState:
