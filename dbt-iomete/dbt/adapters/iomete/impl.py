@@ -33,7 +33,7 @@ GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME = "get_columns_in_relation_raw"
 KEY_TABLE_OWNER = 'Owner'
 KEY_TABLE_STATISTICS = 'Statistics'
 
-# Substrings to check exceptions Spark`SHOW TABLES/VIEWS` raises when a schema/database does not exist.
+# Substrings in the errors Spark raises from `SHOW TABLES/VIEWS` when the schema does not exist.
 SCHEMA_NOT_FOUND_MESSAGES = ("SCHEMA_NOT_FOUND", "NoSuchDatabaseException")
 
 
