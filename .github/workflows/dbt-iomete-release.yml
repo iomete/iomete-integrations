@@ -17,6 +17,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    outputs:
+      new_version: ${{ steps.extract_version.outputs.new_version }}
+      not_empty: ${{ steps.check_dist.outputs.not_empty }}
     env:
       PYPI_TOKEN: '${{ secrets.PYPI_TOKEN }}'
     steps:
@@ -57,12 +60,10 @@ jobs:
         if: ( success() && contains(steps.check_dist.outputs.not_empty, 'true') )
         run: twine upload -u __token__ -p "$PYPI_TOKEN" dist/*
 
-      - name: Trigger post-release workflow
-        # This will check if newly published packages can be pip installed in clean environments
-        if: ( success() && contains(steps.check_dist.outputs.not_empty, 'true') )
-        uses: peter-evans/repository-dispatch@v3
-        with:
-          token: ${{ secrets.API_TOKEN }}
-          repository: ${{ github.repository }}
-          event-type: post-release
-          client-payload: '{"version": "${{ steps.extract_version.outputs.new_version }}"}'
+  post-release:
+    # Checks the newly published package can be pip installed in clean environments
+    needs: package-and-publish
+    if: contains(needs.package-and-publish.outputs.not_empty, 'true')
+    uses: ./.github/workflows/dbt-iomete-post-release.yml
+    with:
+      version: ${{ needs.package-and-publish.outputs.new_version }}
