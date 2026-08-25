@@ -2,6 +2,8 @@ import multiprocessing
 import unittest
 from unittest import mock
 
+import agate
+
 from dbt.adapters.contracts.relation import RelationType
 from dbt.exceptions import DbtProfileError
 from dbt_common.exceptions import DbtRuntimeError
@@ -227,3 +229,59 @@ class TestSparkAdapter(unittest.TestCase):
 
         identifiers = {relation.identifier for relation in relations}
         self.assertEqual(identifiers, {'good_table'})
+
+    def test_list_relations_types_and_providers(self):
+        set_invocation_context({})
+        config = self._get_target_http(self.project_cfg)
+        adapter = SparkAdapter(config, multiprocessing.get_context("spawn"))
+        config.args.single_threaded = True
+
+        def describe_rows(rows):
+            # `col_name`/`data_type` arrive space-padded from the thrift describe.
+            return agate.Table(
+                rows, column_names=['col_name', 'data_type', 'comment']
+            ).rows
+
+        described = {
+            'iceberg_table': describe_rows([
+                ['id', 'int', None],
+                ['', '', None],
+                ['# Detailed Table Information', '', None],
+                ['Provider ', ' iceberg', None],
+            ]),
+            'a_view': describe_rows([
+                ['id', 'int', None],
+                ['', '', None],
+                ['# Detailed Table Information', '', None],
+                ['Type ', ' VIEW', None],
+            ]),
+        }
+
+        def fake_execute_macro(macro_name, kwargs=None):
+            if macro_name == 'list_tables':
+                return [{'tableName': name, 'isTemporary': False}
+                        for name in ('iceberg_table', 'a_view')]
+            if macro_name == 'list_views':
+                return [{'viewName': 'a_view', 'isTemporary': False}]
+            if macro_name == 'get_columns_in_relation_raw':
+                return described[kwargs['relation'].identifier]
+            raise AssertionError(f"unexpected macro {macro_name}")
+
+        schema_relation = adapter.Relation.create(schema='analytics')
+
+        with mock.patch.object(adapter, 'execute_macro', side_effect=fake_execute_macro):
+            relations = {rel.identifier: rel
+                         for rel in adapter.list_relations_without_caching(schema_relation)}
+
+        self.assertEqual(set(relations), {'iceberg_table', 'a_view'})
+
+        table = relations['iceberg_table']
+        self.assertEqual(table.type, RelationType.Table)
+        self.assertEqual(table.provider, 'iceberg')
+        self.assertTrue(table.is_iceberg)
+        self.assertEqual([column.column for column in table.table_fields], ['id'])
+
+        view = relations['a_view']
+        self.assertEqual(view.type, RelationType.View)
+        self.assertIsNone(view.provider)
+        self.assertFalse(view.is_iceberg)
