@@ -1,4 +1,3 @@
-import pytest
 from dbt.tests.adapter.basic.test_base import BaseSimpleMaterializations
 from dbt.tests.adapter.basic.test_singular_tests import BaseSingularTests
 from dbt.tests.adapter.basic.test_singular_tests_ephemeral import (
@@ -49,6 +48,5 @@ class TestSnapshotTimestamp(BaseSnapshotTimestamp):
     pass
 
 
-@pytest.mark.skip(reason="TODO: Failing due to core API 404 handling for non-existing schema")
 class TestBaseAdapterMethod(BaseAdapterMethod):
     pass
