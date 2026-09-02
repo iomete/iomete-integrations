@@ -78,6 +78,38 @@ class TestSparkMacros(unittest.TestCase):
         self.assertEqual(captured["list_tables"], "show tables in analytics")
         self.assertEqual(captured["list_views"], "show views in analytics")
 
+    def test_make_temp_relation_is_qualified_by_catalog_and_schema(self):
+        # global_temp is one namespace per compute, shared by every session, so a
+        # name built from the model identifier alone lets concurrent runs in other
+        # catalogs or schemas replace each other's temp view.
+        from dbt.adapters.iomete import SparkRelation
+
+        def _return(value):
+            raise _MacroReturn(value)
+
+        self.default_context['return'] = _return
+        template = self.__get_template('adapters.sql')
+        relation = SparkRelation.create(
+            database='my_catalog', schema='my_schema', identifier='my_model')
+
+        try:
+            template.module.iomete__make_temp_relation(relation, '__dbt_tmp')
+            self.fail('macro did not return a relation')
+        except _MacroReturn as macro_return:
+            tmp_relation = macro_return.value
+
+        self.assertEqual(tmp_relation.identifier,
+                         'global_temp.my_catalog__my_schema__my_model__dbt_tmp')
+
+        sql = self.__run_macro(
+            template, 'iomete__create_table_as', True,
+            tmp_relation.include(database=False, schema=False), 'select 1').strip()
+
+        self.assertEqual(
+            sql,
+            'create or replace global temporary view '
+            'my_catalog__my_schema__my_model__dbt_tmp as select 1')
+
     def test_macros_create_table_as(self):
         template = self.__get_template('adapters.sql')
         sql = self.__run_macro(template, 'iomete__create_table_as', False, 'my_table', 'select 1').strip()
