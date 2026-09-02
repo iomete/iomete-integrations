@@ -270,3 +270,40 @@ class TestIncrementalStrategyMacros(unittest.TestCase):
 
     def test_append_returns_a_single_statement(self):
         self.assertEqual(self._get_incremental_sql('append'), self.expected_insert)
+
+
+class TestIncrementalStrategyValidation(unittest.TestCase):
+    """The compile-time gate: which strategies are accepted, and what the error names."""
+
+    def setUp(self):
+        self.jinja_env = Environment(loader=FileSystemLoader('dbt/include/iomete/macros'),
+                                     extensions=['jinja2.ext.do', ])
+        self.exceptions = mock.Mock()
+        self.template = self.jinja_env.get_template(
+            'materializations/incremental/validate.sql',
+            globals={'exceptions': self.exceptions, 'return': lambda value: value})
+
+    def _validate(self, raw_strategy, file_format='iceberg'):
+        self.template.module.dbt_iomete_validate_get_incremental_strategy(raw_strategy, file_format)
+        if not self.exceptions.raise_compiler_error.called:
+            return None
+        return _squash(self.exceptions.raise_compiler_error.call_args[0][0])
+
+    def test_accepted_strategies_do_not_raise(self):
+        for strategy in ['append', 'merge', 'delete+insert']:
+            with self.subTest(strategy=strategy):
+                self.exceptions.reset_mock()
+                self.assertIsNone(self._validate(strategy))
+
+    def test_unknown_strategy_error_lists_the_supported_strategies(self):
+        message = self._validate('something_else')
+
+        self.assertIn("Invalid incremental strategy provided: something_else", message)
+        self.assertIn("Expected one of: 'append', 'merge', 'delete+insert'", message)
+
+    def test_unknown_strategy_error_does_not_offer_insert_overwrite(self):
+        self.assertNotIn('insert_overwrite', self._validate('something_else'))
+
+    def test_insert_overwrite_is_still_rejected_for_iceberg(self):
+        self.assertIn('You cannot use this strategy when file_format is set to',
+                      self._validate('insert_overwrite'))
