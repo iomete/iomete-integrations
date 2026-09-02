@@ -27,18 +27,12 @@
 
   {% set invalid_strategy_msg -%}
     Invalid incremental strategy provided: {{ raw_strategy }}
-    Expected one of: 'append', 'merge', 'delete+insert'
+    Expected one of: 'append', 'merge', 'delete+insert', 'insert_overwrite'
   {%- endset %}
 
   {% set invalid_merge_msg -%}
     Invalid incremental strategy provided: {{ raw_strategy }}
     You can only choose this strategy when file_format is set to 'iceberg'
-  {%- endset %}
-  
-  {% set invalid_insert_overwrite_iceberg_msg -%}
-    Invalid incremental strategy provided: {{ raw_strategy }}
-    You cannot use this strategy when file_format is set to 'iceberg' (default one)
-    Use the 'append', 'merge', or 'delete+insert' strategy instead
   {%- endset %}
 
   {% set is_iceberg_file_format = file_format is not defined or file_format == 'iceberg' %}
@@ -52,9 +46,6 @@
   {%-else %}
     {% if raw_strategy == 'merge' and not is_iceberg_file_format %}
       {% do exceptions.raise_compiler_error(invalid_merge_msg) %}
-    {% endif %}
-    {% if raw_strategy == 'insert_overwrite' and is_iceberg_file_format %}
-      {% do exceptions.raise_compiler_error(invalid_insert_overwrite_iceberg_msg) %}
     {% endif %}
   {% endif %}
 
