@@ -1,6 +1,4 @@
-from cProfile import run
 from tests.integration.base import DBTIntegrationTest
-import dbt.exceptions
 
 
 class TestIncrementalStrategies(DBTIntegrationTest):
