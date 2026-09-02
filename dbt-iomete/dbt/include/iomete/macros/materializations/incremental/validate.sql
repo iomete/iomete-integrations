@@ -27,7 +27,7 @@
 
   {% set invalid_strategy_msg -%}
     Invalid incremental strategy provided: {{ raw_strategy }}
-    Expected one of: 'append', 'merge', 'insert_overwrite'
+    Expected one of: 'append', 'merge', 'delete+insert'
   {%- endset %}
 
   {% set invalid_merge_msg -%}
@@ -47,7 +47,7 @@
     {% do exceptions.raise_compiler_error(invalid_file_format_msg) %}
   {% endif %}
 
-  {% if raw_strategy not in ['append', 'merge', 'insert_overwrite'] %}
+  {% if raw_strategy not in ['append', 'merge', 'insert_overwrite', 'delete+insert'] %}
     {% do exceptions.raise_compiler_error(invalid_strategy_msg) %}
   {%-else %}
     {% if raw_strategy == 'merge' and not is_iceberg_file_format %}

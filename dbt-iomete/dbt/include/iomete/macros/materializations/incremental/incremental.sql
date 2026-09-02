@@ -45,9 +45,16 @@
     {% set build_sql = dbt_iomete_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key, incremental_predicates) %}
   {% endif %}
 
-  {%- call statement('main', language=language) -%}
-    {{ build_sql }}
-  {%- endcall -%}
+  {#-- a strategy may return several statements; the connection runs one per call --#}
+  {%- if build_sql is string -%}
+    {%- set build_sql = [build_sql] -%}
+  {%- endif -%}
+
+  {%- for sql in build_sql -%}
+    {%- call statement('main', language=language) -%}
+      {{ sql }}
+    {%- endcall -%}
+  {%- endfor -%}
 
   {% do persist_docs(target_relation, model) %}
   

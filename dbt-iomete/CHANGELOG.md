@@ -1,3 +1,7 @@
+## dbt-iomete 1.8.3
+- Added the `delete+insert` incremental strategy. On an incremental run it deletes the target rows whose unique key appears in the temporary view, then inserts every source row. Unlike `merge`, it accepts a source with duplicate unique keys. The two statements are not atomic — see the README.
+- `insert_overwrite` is no longer listed as a valid option in the unknown-strategy error, since it is rejected for the `iceberg` file format, which is the only format incremental models support.
+
 ## dbt-iomete 1.8.2 (Jul 16, 2026)
 - Removed the IOMETE schema-service HTTP dependency for relation metadata. `list_relations_without_caching` now reads metadata directly from Spark — `show tables`/`show views` plus a `describe extended` per relation — instead of calling the schema-service REST API.
 - The per-relation `describe extended` calls fan out in parallel, controlled by the new `list_relations_threads` profile setting (default 100), which is independent of dbt's global `threads`. This keeps listing fast for schemas with many tables without raising the thread count used to build models.
