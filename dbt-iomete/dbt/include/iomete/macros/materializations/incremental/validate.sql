@@ -38,7 +38,7 @@
   {% set invalid_insert_overwrite_iceberg_msg -%}
     Invalid incremental strategy provided: {{ raw_strategy }}
     You cannot use this strategy when file_format is set to 'iceberg' (default one)
-    Use the 'append' or 'merge' strategy instead
+    Use the 'append', 'merge', or 'delete+insert' strategy instead
   {%- endset %}
 
   {% set is_iceberg_file_format = file_format is not defined or file_format == 'iceberg' %}
