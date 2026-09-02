@@ -69,7 +69,7 @@ or omit it entirely to use the default.
 
 ### Incremental strategies
 
-Incremental models run on Iceberg tables and support three strategies, set with the
+Incremental models run on Iceberg tables and support four strategies, set with the
 `incremental_strategy` config:
 
 | Strategy | What it does |
@@ -77,6 +77,7 @@ Incremental models run on Iceberg tables and support three strategies, set with 
 | `merge` (default) | Updates target rows matching the unique key and inserts the rest. |
 | `append` | Inserts every source row, never touching existing rows. |
 | `delete+insert` | Deletes the target rows whose unique key appears in the new data, then inserts every source row. |
+| `insert_overwrite` | Overwrites the partitions present in the new data, or the whole table if the model has no `partition_by`. |
 
 Reach for `delete+insert` when the source can produce more than one row per unique key.
 Spark's `MERGE INTO` fails in that case, while `delete+insert` keeps all of them. Without a
@@ -90,5 +91,18 @@ Two caveats worth knowing before you use it:
 - `incremental_predicates` apply to the delete only, never to the insert. A predicate that
   excludes an existing target row from the delete leaves that row in place while the insert
   still adds the new one, so you end up with two rows sharing a key.
+
+`insert_overwrite` replaces data rather than merging it, in one atomic Iceberg operation.
+With a `partition_by` it only touches the partitions the current run produced, so partitions
+the run did not produce keep their existing rows. Hidden Iceberg transforms such as
+`days(ts)` work here, because Iceberg derives the affected partitions from the result rather
+than from a partition clause. Without a `partition_by` every row in the table is replaced by
+the current result, which is the strategy to reach for when a model rebuilds its full output
+each run.
+
+One thing to watch: partition overwrites rely on `spark.sql.sources.partitionOverwriteMode`,
+which the adapter sets to `DYNAMIC` for partitioned models and deliberately never resets. A
+reset would race with other models running in the same session and could turn their partition
+overwrite into a full-table overwrite.
 
 For more information, consult [the docs](https://iomete.com/docs/guides/dbt/getting-started-with-iomete-dbt).
