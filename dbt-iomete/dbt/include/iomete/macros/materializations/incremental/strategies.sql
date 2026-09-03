@@ -14,17 +14,35 @@
     {%- set dest_columns = adapter.get_columns_in_relation(target_relation) | map(attribute='quoted') | list -%}
     {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute='quoted') | list -%}
 
+    {%- set select_columns = [] -%}
+    {%- for col in dest_columns -%}
+        {%- do select_columns.append(col if col in source_columns else 'NULL AS ' ~ col) -%}
+    {%- endfor %}
+
     insert into table {{ target_relation }} ({{ dest_columns | join(', ') }})
-    select
-        {%- for col in dest_columns %}
-            {%- if col in source_columns -%}
-                {{ col }}
-            {%- else -%}
-                NULL AS {{ col }}
-            {%- endif -%}
-            {%- if not loop.last %}, {% endif -%}
-        {%- endfor %}
+    select {{ select_columns | join(', ') }}
     from {{ source_relation.include(database=false, schema=false) }}
+
+{% endmacro %}
+
+
+{% macro get_delete_by_unique_key_sql(source_relation, target_relation, unique_key, incremental_predicates) %}
+
+    {%- set unique_key_columns = unique_key if unique_key is sequence and unique_key is not mapping and unique_key is not string else [unique_key] -%}
+    {%- set key_conditions = [] -%}
+    {%- for key in unique_key_columns -%}
+        {#-- <=> so a NULL key matches the same NULL key #}
+        {%- do key_conditions.append('DBT_INTERNAL_DEST.' ~ key ~ ' <=> DBT_INTERNAL_SOURCE.' ~ key) -%}
+    {%- endfor -%}
+
+    delete from {{ target_relation }} as DBT_INTERNAL_DEST
+    where exists (
+        select 1 from {{ source_relation }} as DBT_INTERNAL_SOURCE
+        where {{ key_conditions | join(' and ') }}
+    )
+    {%- for predicate in ([] if incremental_predicates is none else incremental_predicates) %}
+        and {{ predicate }}
+    {%- endfor %}
 
 {% endmacro %}
 
@@ -103,6 +121,13 @@
   {%- elif strategy == 'merge' -%}
   {#-- merge all columns with iceberg table - schema changes are handled for us #}
     {{ get_merge_sql(target, source, unique_key, dest_columns=none, incremental_predicates=incremental_predicates) }}
+  {%- elif strategy == 'delete+insert' -%}
+    {%- set statements = [] -%}
+    {%- if unique_key -%}
+      {%- do statements.append(get_delete_by_unique_key_sql(source, target, unique_key, incremental_predicates)) -%}
+    {%- endif -%}
+    {%- do statements.append(get_insert_into_sql(source, target)) -%}
+    {%- do return(statements) -%}
   {%- else -%}
     {% set no_sql_for_strategy_msg -%}
       No known SQL for the incremental strategy provided: {{ strategy }}

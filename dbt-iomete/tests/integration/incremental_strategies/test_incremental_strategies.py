@@ -68,6 +68,9 @@ class TestIcebergStrategies(TestIncrementalStrategies):
         self.assertTablesEqual("merge_no_key", "expected_append")
         self.assertTablesEqual("merge_unique_key", "expected_upsert")
         self.assertTablesEqual("merge_update_columns", "expected_partial_upsert")
+        self.assertTablesEqual("delete_insert_no_key", "expected_append")
+        self.assertTablesEqual("delete_insert_unique_key", "expected_delete_insert")
+        self.assertTablesEqual("delete_insert_null_key", "expected_delete_insert_null_key")
 
     def test_iceberg_strategies(self):
         self.run_and_test()

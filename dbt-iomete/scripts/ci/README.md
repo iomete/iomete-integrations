@@ -79,9 +79,9 @@ infrastructure concerns owned by whoever operates the IOMETE deployment:
 - Backing **object storage** for catalog data (the location referenced by the
   catalog's `lakehouseDir`) must be writable.
 - **Compute node types**, but only the ones you name yourself. Provisioning
-  creates the `driver-x-small` and `exec-x-small` defaults when the dataplane's
+  creates the `driver-small` and `exec-x-small` defaults when the dataplane's
   catalog lacks them, because cloud dataplanes ship a fixed set that often omits
-  the x-small tier. Point `DBT_IOMETE_DRIVER_NODE_TYPE` or
+  the smaller tiers. Point `DBT_IOMETE_DRIVER_NODE_TYPE` or
   `DBT_IOMETE_EXECUTOR_NODE_TYPE` at a different name and that node type has to
   exist already: provisioning has no spec to build it from and fails with the
   name it could not find.
@@ -106,9 +106,9 @@ Optional overrides (sensible defaults are built in):
 
 | Variable                       | Default        | Purpose                          |
 | ------------------------------ | -------------- | -------------------------------- |
-| `DBT_IOMETE_DRIVER_NODE_TYPE`  | `driver-x-small`| Compute driver node type         |
+| `DBT_IOMETE_DRIVER_NODE_TYPE`  | `driver-small` | Compute driver node type (2vCPU/8GB) |
 | `DBT_IOMETE_EXECUTOR_NODE_TYPE`| `exec-x-small` | Compute executor node type       |
-| `DBT_IOMETE_MAX_EXECUTORS`     | `2`            | Compute autoscale ceiling        |
+| `DBT_IOMETE_MAX_EXECUTORS`     | `4`            | Compute autoscale ceiling        |
 | `DBT_IOMETE_ACTIVE_TIMEOUT_SECONDS` | `120`     | Seconds to wait for compute ACTIVE |
 | `DBT_IOMETE_POLL_INTERVAL_SECONDS`  | `10`      | Seconds between status polls      |
 
@@ -149,7 +149,7 @@ Created at provision time, removed at teardown:
 
 Created but left in place:
 
-- The **node types** `driver-x-small` and `exec-x-small`, when the dataplane did
+- The **node types** `driver-small` and `exec-x-small`, when the dataplane did
   not already have them. They are shared across runs, so teardown leaves them
   rather than deleting a node type another run is still using.
 

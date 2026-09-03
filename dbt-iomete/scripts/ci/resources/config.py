@@ -52,6 +52,12 @@ NODE_TYPE_SPECS = {
         "components": ["EXECUTOR"],
         "description": "x-small (2vCPU/8GB)",
     },
+    "driver-small": {
+        "cpu": 2000,
+        "memory": 8000,
+        "components": ["DRIVER"],
+        "description": "small (2vCPU/8GB)",
+    },
 }
 
 FULL_ACCESS = "ALL"
@@ -128,9 +134,9 @@ class Config:
     lakehouse_dir_prefix: str
 
     # Compute-create config.
-    driver_node_type: str = "driver-x-small"
+    driver_node_type: str = "driver-small"
     executor_node_type: str = "exec-x-small"
-    max_executors: int = 2
+    max_executors: int = 4
 
     # Wait/timeout tuning.
     active_timeout_seconds: int = 120

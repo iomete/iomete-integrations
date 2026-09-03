@@ -246,7 +246,9 @@
 
 
 {% macro iomete__make_temp_relation(base_relation, suffix) %}
-    {% set tmp_identifier = 'global_temp.' ~ base_relation.identifier ~ suffix %}
+    {#-- global_temp is shared by every session on a compute, so the name must carry
+         the catalog and schema or concurrent runs overwrite each other's temp view --#}
+    {% set tmp_identifier = 'global_temp.' ~ base_relation.database ~ '__' ~ base_relation.schema ~ '__' ~ base_relation.identifier ~ suffix %}
     {% set tmp_relation = base_relation.incorporate(path = {
         "identifier": tmp_identifier,
         "schema": None

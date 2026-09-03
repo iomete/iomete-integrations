@@ -67,4 +67,28 @@ setting used to build models, so you can keep `threads` low while still listing 
 with many tables quickly. It defaults to `100`; lower it if the data plane is under load,
 or omit it entirely to use the default.
 
+### Incremental strategies
+
+Incremental models run on Iceberg tables and support three strategies, set with the
+`incremental_strategy` config:
+
+| Strategy | What it does |
+| --- | --- |
+| `merge` (default) | Updates target rows matching the unique key and inserts the rest. |
+| `append` | Inserts every source row, never touching existing rows. |
+| `delete+insert` | Deletes the target rows whose unique key appears in the new data, then inserts every source row. |
+
+Reach for `delete+insert` when the source can produce more than one row per unique key.
+Spark's `MERGE INTO` fails in that case, while `delete+insert` keeps all of them. Without a
+`unique_key` it behaves like `append`.
+
+Two caveats worth knowing before you use it:
+
+- The delete and the insert are two separate statements, and Spark cannot wrap them in one
+  transaction. If the insert fails after the delete has succeeded, the deleted rows are gone
+  and the model has to be rerun (or full-refreshed) to get them back.
+- `incremental_predicates` apply to the delete only, never to the insert. A predicate that
+  excludes an existing target row from the delete leaves that row in place while the insert
+  still adds the new one, so you end up with two rows sharing a key.
+
 For more information, consult [the docs](https://iomete.com/docs/guides/dbt/getting-started-with-iomete-dbt).
