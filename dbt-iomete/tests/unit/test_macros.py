@@ -303,6 +303,30 @@ class TestIncrementalStrategyMacros(unittest.TestCase):
     def test_append_returns_a_single_statement(self):
         self.assertEqual(self._get_incremental_sql('append'), self.expected_insert)
 
+    def test_insert_overwrite_uses_the_data_source_v2_form(self):
+        sql = self._get_incremental_sql('insert_overwrite')
+
+        self.assertEqual(sql,
+                         'insert overwrite my_target (`id`, `country`, `msg`, `only_in_target`) '
+                         'select `id`, `country`, `msg`, NULL AS `only_in_target` from my_source')
+
+    def test_insert_overwrite_omits_the_hive_table_keyword_and_partition_clause(self):
+        sql = self._get_incremental_sql('insert_overwrite')
+
+        self.assertNotIn('insert overwrite table', sql)
+        self.assertNotIn('partition (', sql.lower())
+
+    def test_insert_overwrite_maps_columns_by_name_not_position(self):
+        # source columns reordered: the select list must still follow target order
+        self.default_context['adapter'].get_columns_in_relation = lambda relation: [
+            mock.Mock(quoted='`{}`'.format(name))
+            for name in (['id', 'country', 'msg', 'only_in_target'] if relation == self.target
+                         else ['msg', 'id', 'country'])]
+
+        sql = self._get_incremental_sql('insert_overwrite')
+
+        self.assertIn('select `id`, `country`, `msg`, NULL AS `only_in_target`', sql)
+
 
 class TestIncrementalStrategyValidation(unittest.TestCase):
     """The compile-time gate: which strategies are accepted, and what the error names."""
@@ -319,10 +343,11 @@ class TestIncrementalStrategyValidation(unittest.TestCase):
         self.template.module.dbt_iomete_validate_get_incremental_strategy(raw_strategy, file_format)
         if not self.exceptions.raise_compiler_error.called:
             return None
-        return _squash(self.exceptions.raise_compiler_error.call_args[0][0])
+        # the mock keeps going where a real raise aborts, so only the first error is the one a user sees
+        return _squash(self.exceptions.raise_compiler_error.call_args_list[0][0][0])
 
     def test_accepted_strategies_do_not_raise(self):
-        for strategy in ['append', 'merge', 'delete+insert']:
+        for strategy in ['append', 'merge', 'delete+insert', 'insert_overwrite']:
             with self.subTest(strategy=strategy):
                 self.exceptions.reset_mock()
                 self.assertIsNone(self._validate(strategy))
@@ -331,11 +356,13 @@ class TestIncrementalStrategyValidation(unittest.TestCase):
         message = self._validate('something_else')
 
         self.assertIn("Invalid incremental strategy provided: something_else", message)
-        self.assertIn("Expected one of: 'append', 'merge', 'delete+insert'", message)
+        self.assertIn("Expected one of: 'append', 'merge', 'delete+insert', 'insert_overwrite'",
+                      message)
 
-    def test_unknown_strategy_error_does_not_offer_insert_overwrite(self):
-        self.assertNotIn('insert_overwrite', self._validate('something_else'))
-
-    def test_insert_overwrite_is_still_rejected_for_iceberg(self):
-        self.assertIn('You cannot use this strategy when file_format is set to',
-                      self._validate('insert_overwrite'))
+    def test_non_iceberg_file_formats_are_rejected_for_every_strategy(self):
+        for strategy in ['append', 'merge', 'delete+insert', 'insert_overwrite']:
+            for file_format in ['csv', 'json', 'jdbc', 'parquet', 'orc']:
+                with self.subTest(strategy=strategy, file_format=file_format):
+                    self.exceptions.reset_mock()
+                    self.assertIn("We only support 'iceberg' file format",
+                                  self._validate(strategy, file_format=file_format))

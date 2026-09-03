@@ -69,26 +69,55 @@ or omit it entirely to use the default.
 
 ### Incremental strategies
 
-Incremental models run on Iceberg tables and support three strategies, set with the
+IOMETE incremental models use Iceberg tables. Choose a strategy with the
 `incremental_strategy` config:
 
-| Strategy | What it does |
+| Strategy | Behavior |
 | --- | --- |
-| `merge` (default) | Updates target rows matching the unique key and inserts the rest. |
-| `append` | Inserts every source row, never touching existing rows. |
-| `delete+insert` | Deletes the target rows whose unique key appears in the new data, then inserts every source row. |
+| `merge` (default) | Updates rows that match the `unique_key` and inserts new rows. |
+| `append` | Inserts every row from the current run without changing existing rows. |
+| `delete+insert` | Deletes rows that match the current run's `unique_key` values, then inserts every row from the current run. |
+| `insert_overwrite` | Replaces the affected partitions, or the whole table when `partition_by` is not set. |
 
-Reach for `delete+insert` when the source can produce more than one row per unique key.
-Spark's `MERGE INTO` fails in that case, while `delete+insert` keeps all of them. Without a
-`unique_key` it behaves like `append`.
+#### Use `delete+insert` for duplicate keys
 
-Two caveats worth knowing before you use it:
+Use `delete+insert` when one run can return several rows with the same `unique_key`.
+Spark rejects those rows during a `merge`, but `delete+insert` keeps them. If you omit
+`unique_key`, this strategy behaves like `append`.
 
-- The delete and the insert are two separate statements, and Spark cannot wrap them in one
-  transaction. If the insert fails after the delete has succeeded, the deleted rows are gone
-  and the model has to be rerun (or full-refreshed) to get them back.
-- `incremental_predicates` apply to the delete only, never to the insert. A predicate that
-  excludes an existing target row from the delete leaves that row in place while the insert
-  still adds the new one, so you end up with two rows sharing a key.
+The delete and insert are separate statements, so the operation is not atomic. If the insert
+fails after the delete succeeds, rerun the model or perform a full refresh to restore the
+missing rows. Also note that `incremental_predicates` apply only to the delete. The insert
+still writes every row from the current run.
+
+#### Replace partitions with `insert_overwrite`
+
+Use `insert_overwrite` when each run returns the complete contents of every partition it
+updates. Rows already stored in an affected partition are removed, even if the current model
+result does not contain replacements for them.
+
+For example, this model replaces only the calendar days returned by the current run:
+
+```sql
+{{ config(
+    materialized='incremental',
+    incremental_strategy='insert_overwrite',
+    partition_by='days(event_time)'
+) }}
+
+select event_id, event_time, payload
+from {{ ref('events') }}
+{% if is_incremental() %}
+where event_time >= current_date() - interval 1 day
+{% endif %}
+```
+
+Partitions absent from the result stay unchanged. Iceberg hidden partition transforms such
+as `days(event_time)` and `bucket(16, event_id)` are supported. If you omit `partition_by`,
+the current result replaces every row in the target table.
+
+The overwrite is one atomic Iceberg operation. Values map to target columns by name rather
+than source position, and a target column missing from the current model result receives
+`NULL`.
 
 For more information, consult [the docs](https://iomete.com/docs/guides/dbt/getting-started-with-iomete-dbt).

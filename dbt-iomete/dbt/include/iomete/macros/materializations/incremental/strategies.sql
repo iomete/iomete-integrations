@@ -1,15 +1,4 @@
-{% macro get_insert_overwrite_sql(source_relation, target_relation) %}
-    
-    {%- set dest_columns = adapter.get_columns_in_relation(target_relation) -%}
-    {%- set dest_cols_csv = dest_columns | map(attribute='quoted') | join(', ') -%}
-    insert overwrite table {{ target_relation }}
-    {{ partition_cols(label="partition") }}
-    select {{dest_cols_csv}} from {{ source_relation.include(database=false, schema=false) }}
-
-{% endmacro %}
-
-
-{% macro get_insert_into_sql(source_relation, target_relation) %}
+{% macro get_insert_sql(source_relation, target_relation, insert_clause) %}
 
     {%- set dest_columns = adapter.get_columns_in_relation(target_relation) | map(attribute='quoted') | list -%}
     {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute='quoted') | list -%}
@@ -19,10 +8,20 @@
         {%- do select_columns.append(col if col in source_columns else 'NULL AS ' ~ col) -%}
     {%- endfor %}
 
-    insert into table {{ target_relation }} ({{ dest_columns | join(', ') }})
+    {{ insert_clause }} {{ target_relation }} ({{ dest_columns | join(', ') }})
     select {{ select_columns | join(', ') }}
     from {{ source_relation.include(database=false, schema=false) }}
 
+{% endmacro %}
+
+
+{% macro get_insert_overwrite_sql(source_relation, target_relation) %}
+    {{ get_insert_sql(source_relation, target_relation, 'insert overwrite') }}
+{% endmacro %}
+
+
+{% macro get_insert_into_sql(source_relation, target_relation) %}
+    {{ get_insert_sql(source_relation, target_relation, 'insert into table') }}
 {% endmacro %}
 
 
@@ -116,7 +115,7 @@
     {#-- insert new records into existing table, without updating or overwriting #}
     {{ get_insert_into_sql(source, target) }}
   {%- elif strategy == 'insert_overwrite' -%}
-    {#-- insert statements don't like CTEs, so support them via a temp view #}
+    {#-- one atomic Iceberg overwrite: the partitions in the result, or the whole table #}
     {{ get_insert_overwrite_sql(source, target) }}
   {%- elif strategy == 'merge' -%}
   {#-- merge all columns with iceberg table - schema changes are handled for us #}

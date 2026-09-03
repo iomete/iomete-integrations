@@ -1,7 +1,4 @@
-import pytest
-from cProfile import run
 from tests.integration.base import DBTIntegrationTest
-import dbt.exceptions
 
 
 class TestIncrementalStrategies(DBTIntegrationTest):
@@ -40,27 +37,25 @@ class TestDefaultAppend(TestIncrementalStrategies):
         self.run_and_test()
 
 
-class TestInsertOverwrite(TestIncrementalStrategies):
-    @property
-    def models(self):
-        return "models_insert_overwrite"
-
-    def run_and_test(self):
-        self.seed_and_run_twice()
-        self.assertTablesEqual(
-            "insert_overwrite_no_partitions", "expected_overwrite")
-        self.assertTablesEqual(
-            "insert_overwrite_partitions", "expected_upsert")
-
-    @pytest.mark.skip(reason="We do not support parquet file format yet")
-    def test_insert_overwrite(self):
-        self.run_and_test()
-
-
 class TestIcebergStrategies(TestIncrementalStrategies):
     @property
     def models(self):
         return "models_iceberg"
+
+    @property
+    def project_config(self):
+        return {
+            'seeds': {
+                'quote_columns': False,
+                'test': {
+                    # msg is empty in every row, so seed inference would type it
+                    # bigint and the column-type assertion would fail
+                    'expected_insert_overwrite_missing_columns': {
+                        '+column_types': {'msg': 'string'},
+                    },
+                },
+            },
+        }
 
     def run_and_test(self):
         self.seed_and_run_twice()
@@ -71,6 +66,11 @@ class TestIcebergStrategies(TestIncrementalStrategies):
         self.assertTablesEqual("delete_insert_no_key", "expected_append")
         self.assertTablesEqual("delete_insert_unique_key", "expected_delete_insert")
         self.assertTablesEqual("delete_insert_null_key", "expected_delete_insert_null_key")
+        self.assertTablesEqual("insert_overwrite_no_partitions", "expected_overwrite")
+        self.assertTablesEqual("insert_overwrite_partitions", "expected_upsert")
+        self.assertTablesEqual("insert_overwrite_transform", "expected_insert_overwrite_transform")
+        self.assertTablesEqual("insert_overwrite_missing_columns",
+                               "expected_insert_overwrite_missing_columns")
 
     def test_iceberg_strategies(self):
         self.run_and_test()
