@@ -1,4 +1,4 @@
-## dbt-iomete 1.8.3
+## dbt-iomete 1.8.3 (Sep 4, 2026)
 - Added the `delete+insert` incremental strategy. On an incremental run it deletes the target rows whose unique key appears in the temporary view, then inserts every source row. Unlike `merge`, it accepts a source with duplicate unique keys. The two statements are not atomic — see the README.
 - Added the `insert_overwrite` incremental strategy for Iceberg tables. A model with `partition_by` replaces only the partitions present in the current result, including hidden transforms such as `days(ts)`; a model without `partition_by` replaces every row. The overwrite is a single atomic Iceberg statement, and values map to target columns by name, so a target column missing from the model gets NULL.
 
