@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<dialect name="IOMETE Spark SQL" class="iomete" version="18.1">
+  <sql-format>
+    <format-select>
+      <part name="Select" value="SELECT %1"/>
+      <part name="From" value="FROM %1"/>
+      <part name="Where" value="WHERE %1"/>
+      <part name="Group" value="GROUP BY %1"/>
+      <part name="Having" value="HAVING %1"/>
+      <part name="OrderBy" value="ORDER BY %1"/>
+      <part name="Top" value="LIMIT %1"/>
+    </format-select>
+    <id-quotes value="`"/>
+  </sql-format>
+</dialect>

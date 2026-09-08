@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<connector-plugin class="iomete" superclass="jdbc" plugin-version="0.1.0" name="IOMETE (Arrow Flight SQL)" version="18.1" min-version-tableau="2024.2">
+  <vendor-information>
+    <company name="IOMETE"/>
+    <support-link url="https://iomete.com/resources/integrations/bi/tableau"/>
+    <driver-download-link url="https://github.com/iomete/iomete-artifacts"/>
+  </vendor-information>
+  <platforms>
+    <platform name="win"/>
+    <platform name="mac"/>
+    <platform name="linux"/>
+  </platforms>
+  <connection-customization class="iomete" enabled="true" version="10.0">
+    <vendor name="iomete"/>
+    <driver name="arrow-flight-sql"/>
+    <customizations>
+      <customization name="CAP_CREATE_TEMP_TABLES" value="no"/>
+      <customization name="CAP_SELECT_INTO" value="no"/>
+      <customization name="CAP_SELECT_TOP_INTO" value="no"/>
+      <customization name="CAP_QUERY_SUBQUERIES" value="yes"/>
+    </customizations>
+  </connection-customization>
+  <connection-fields file="connectionFields.xml"/>
+  <connection-metadata file="connectionMetadata.xml"/>
+  <connection-resolver file="connectionResolver.tdr"/>
+  <dialect file="dialect.tdd"/>
+</connector-plugin>
