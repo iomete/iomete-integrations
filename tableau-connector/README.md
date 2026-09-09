@@ -23,22 +23,17 @@ You need three files:
 
 The connector does not bundle the JDBC driver.
 
-Place the connector and JDBC driver in their Tableau directories:
+Place the connector and JDBC driver in their standard Tableau directories:
 
 | Platform | `.taco` connector | JDBC driver |
 |---|---|---|
-| macOS | `~/Documents/My Tableau Repository/Connectors/` | `~/Library/Tableau/Drivers/` |
-| Windows | `C:\Users\[user]\Documents\My Tableau Repository\Connectors` | `C:\Program Files\Tableau\Drivers` |
-| Linux (Tableau Server) | `/var/opt/tableau/connectors` | `/opt/tableau/tableau_driver/jdbc` |
+| macOS Desktop | `~/Documents/My Tableau Repository/Connectors/` | `~/Library/Tableau/Drivers/` |
+| Windows Desktop | `C:\Users\[user]\Documents\My Tableau Repository\Connectors` | `C:\Program Files\Tableau\Drivers` |
+| Linux Server | `/opt/tableau/connectors` | `/opt/tableau/tableau_driver/jdbc` |
+| Windows Server | `C:\Program Files\Tableau\Connectors` | `C:\Program Files\Tableau\Drivers` |
 
-On Tableau Server, install both files on every node that runs queries, configure the connector directory, and apply the change:
+On Tableau Server, install both files in the same locations on every node, make them readable by the Tableau Server run-as account, and restart Tableau Server. Restart Tableau Desktop after installing or replacing either file.
 
-```bash
-tsm configuration set -k native_api.connect_plugins_path -v /var/opt/tableau/connectors
-tsm pending-changes apply
-```
-
-Restart Tableau after installing or replacing either file.
 
 ### Trust the connector certificate
 
@@ -46,24 +41,18 @@ For now, IOMETE signs the `.taco` with a self-signed certificate. Tableau cannot
 
 The same certificate signs every self-signed release. Import it again only if IOMETE rotates the certificate or a Tableau upgrade replaces the JRE truststore.
 
-Find the JRE used by Tableau and back up its truststore before changing it. On Tableau Desktop, the truststore is usually under the installation directory:
-
-| Platform | Truststore |
-|---|---|
-| macOS | `/Applications/Tableau Desktop <version>.app/Contents/Plugins/jre/lib/security/cacerts` |
-| Windows | `C:\Program Files\Tableau\Tableau <version>\Plugins\jre\lib\security\cacerts` |
-| Tableau Server | `<Tableau JRE>/lib/security/cacerts` on every node |
-
-Set `TABLEAU_JRE` to the directory that contains `lib/security/cacerts`, then import the certificate with administrator privileges. On macOS or Linux:
+On macOS Desktop, set `TABLEAU_JRE` to the JRE inside your installed application, then back up its truststore and import the certificate. This example matches Tableau Desktop 2026.2 for Apple silicon; adjust the application name and version if yours differs:
 
 ```bash
+TABLEAU_JRE="/Applications/Tableau Desktop (Apple silicon) 2026.2.app/Contents/Plugins/jre"
 sudo cp "$TABLEAU_JRE/lib/security/cacerts" "$TABLEAU_JRE/lib/security/cacerts.bak"
 sudo keytool -importcert -noprompt -alias iomete-taco \
   -file /path/to/iomete-taco.cer \
   -keystore "$TABLEAU_JRE/lib/security/cacerts" -storepass changeit
 ```
 
-On Windows, run PowerShell as Administrator:
+
+On Windows Desktop, run PowerShell as Administrator and adjust the Tableau version in the path:
 
 ```powershell
 $TableauJre = 'C:\Program Files\Tableau\Tableau <version>\Plugins\jre'
@@ -73,14 +62,23 @@ keytool -importcert -noprompt -alias iomete-taco `
   -keystore "$TableauJre\lib\security\cacerts" -storepass changeit
 ```
 
-Restart Tableau after the import. Tableau Cloud cannot use this self-signed connector because you cannot modify its truststore.
+Restart Tableau Desktop after the import. Tableau Server does not document a stable JRE truststore path; confirm the path for your exact installation and repeat the import on every node, or use the testing-only verification bypass below.
 
-### Disable verification for testing
+### Disable connector signature verification for testing
 
-If you cannot edit the truststore, start Tableau Desktop with this JVM option:
+If you cannot edit the truststore, start Tableau Desktop from the command line with signature verification disabled. On macOS, adjust the application name and version first:
 
-```text
--DDisableVerifyConnectorPluginSignature=true
+```bash
+TABLEAU_APP="/Applications/Tableau Desktop (Apple silicon) 2026.2.app"
+"$TABLEAU_APP/Contents/MacOS/Tableau" \
+  -DDisableVerifyConnectorPluginSignature=true
+```
+
+On Windows, run:
+
+```powershell
+& 'C:\Program Files\Tableau\Tableau <version>\bin\tableau.exe' `
+  '-DDisableVerifyConnectorPluginSignature=true'
 ```
 
 On Tableau Server, disable verification through TSM and apply the pending change:
@@ -90,7 +88,7 @@ tsm configuration set -k native_api.disable_verify_connector_plugin_signature -v
 tsm pending-changes apply
 ```
 
-Disabling verification allows Tableau to load any unsigned or untrusted connector, so use it only for testing.
+Disabling connector signature verification allows Tableau to load any unsigned or untrusted connector, so use it only for testing.
 
 ## Connect to IOMETE
 
@@ -107,10 +105,14 @@ Fill in the connection dialog:
 | Catalog | Optional. Leave blank for all catalogs, or enter one catalog to limit discovery |
 | Username | Your IOMETE username |
 | Access Token | Your IOMETE access token |
+| Query Timeout | Optional. Maximum query duration in seconds; blank means no timeout |
+| Connection Timeout | Optional. Connection timeout in seconds; blank uses the driver's 10-second default |
+| Client Thread Pool Size | Optional. Parallel Flight endpoint workers; blank uses the driver's default of `1` |
+| Disable Certificate Verification | Leave off unless the IOMETE endpoint uses a certificate Tableau does not trust; disabling it weakens server identity verification |
 
 Make sure the compute cluster is running, then select **Sign In**. Leave **Catalog** blank when you want to browse every catalog you can access. If you enter a catalog, Tableau limits metadata discovery to that catalog.
 
-TLS is always enabled. The connector passes the username and access token as JDBC properties, so credentials are not included in the JDBC URL.
+TLS encryption is always enabled. **Disable Certificate Verification** skips validation of the IOMETE server's TLS certificate; it does not disable encryption or bypass `.taco` signature verification. The connector passes the username and access token as JDBC properties, so credentials are not included in the JDBC URL.
 
 ## Troubleshooting
 
