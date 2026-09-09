@@ -1,0 +1,48 @@
+name: PR Check for tableau-connector
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'tableau-connector/**'
+      - '.github/workflows/tableau-connector-pr-check.yml'
+  workflow_call:
+
+defaults:
+  run:
+    working-directory: tableau-connector
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Run contract tests
+        run: node --test tests/*.test.js
+
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Cache the Connector SDK and packager venv
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/iomete-tableau-connector
+          key: taco-sdk-${{ hashFiles('tableau-connector/scripts/taco.sh') }}
+
+      - name: Validate connector XML
+        run: ./scripts/taco.sh validate

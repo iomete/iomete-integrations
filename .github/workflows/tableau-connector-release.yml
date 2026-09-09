@@ -1,0 +1,101 @@
+name: RELEASE for tableau-connector
+
+on:
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: tableau-connector
+
+jobs:
+  checks:
+    uses: ./.github/workflows/tableau-connector-pr-check.yml
+    secrets: inherit
+
+  release:
+    needs: checks
+    runs-on: ubuntu-latest
+    environment: tableau-release
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Extract version from the connector manifest
+        id: version
+        run: |
+          VERSION=$(sed -n 's/.*plugin-version="\([^"]*\)".*/\1/p' connector/manifest.xml)
+          [ -n "$VERSION" ] || { echo "plugin-version not found in manifest.xml" >&2; exit 1; }
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=tableau-connector-v${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: ${VERSION}"
+
+      - name: Refuse to overwrite an existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists. Bump plugin-version in connector/manifest.xml." >&2
+            exit 1
+          fi
+
+      - name: Build the .taco
+        run: ./scripts/taco.sh build "${RUNNER_TEMP}/taco-out"
+
+      - name: Restore the self-signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.TACO_KEYSTORE_BASE64 }}
+        run: |
+          [ -n "$KEYSTORE_BASE64" ] || { echo "TACO_KEYSTORE_BASE64 is not set" >&2; exit 1; }
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "${RUNNER_TEMP}/iomete-taco.jks"
+          chmod 600 "${RUNNER_TEMP}/iomete-taco.jks"
+
+      - name: Sign and verify the .taco
+        env:
+          TACO_KEYSTORE: ${{ runner.temp }}/iomete-taco.jks
+          TACO_KEYSTORE_PASSWORD: ${{ secrets.TACO_KEYSTORE_PASSWORD }}
+        run: ./scripts/taco.sh sign "${RUNNER_TEMP}"/taco-out/*.taco
+
+      - name: Export the public certificate
+        env:
+          TACO_KEYSTORE_PASSWORD: ${{ secrets.TACO_KEYSTORE_PASSWORD }}
+        run: |
+          keytool -exportcert -rfc -alias iomete-taco \
+            -keystore "${RUNNER_TEMP}/iomete-taco.jks" \
+            -storepass:env TACO_KEYSTORE_PASSWORD \
+            -file "${RUNNER_TEMP}/taco-out/iomete-taco.cer"
+
+      - name: Remove the keystore
+        if: always()
+        run: rm -f "${RUNNER_TEMP}/iomete-taco.jks"
+
+      - name: Checksum release files
+        working-directory: ${{ runner.temp }}/taco-out
+        run: sha256sum *.taco *.cer | tee SHA256SUMS
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "$TAG" \
+            --target "$GITHUB_SHA" \
+            --title "Tableau connector v${VERSION}" \
+            --generate-notes \
+            "${RUNNER_TEMP}"/taco-out/*.taco \
+            "${RUNNER_TEMP}"/taco-out/*.cer \
+            "${RUNNER_TEMP}/taco-out/SHA256SUMS"
