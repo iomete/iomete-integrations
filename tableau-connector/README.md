@@ -117,7 +117,6 @@ TLS is always enabled. The connector passes the username and access token as JDB
 - If the connector does not appear, confirm the connector and driver are in the correct directories, then either import `iomete-taco.cer` into Tableau's JRE truststore or disable signature verification for testing.
 - If Tableau cannot find the driver, confirm the filename is `flight-sql-jdbc-driver-19.0.0-iomete.3.jar` and that it is in the driver directory for the Tableau host.
 - If a valid connection fails, confirm that the compute cluster is running and that the server, cluster, namespace, username, and access token are correct.
-- A wrong access token currently appears as **Bad Connection** rather than **Invalid username or password** because of the driver's SQLSTATE reporting.
 
 ## Maintain the connector
 
