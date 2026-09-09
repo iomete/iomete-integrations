@@ -19,7 +19,7 @@ You need three files:
 
 1. Open the [Tableau connector releases](https://github.com/iomete/iomete-integrations/releases?q=tableau-connector) page and choose the newest `tableau-connector-v*` release.
 2. Download its `.taco` file and `iomete-taco.cer`. The release also includes `SHA256SUMS` for verifying both files.
-3. Download the tested JDBC driver, [`flight-sql-jdbc-driver-19.0.0-iomete.3.jar`](https://github.com/iomete/iomete-artifacts/raw/refs/heads/main/flight-sql-jdbc-driver-19.0.0-iomete.3.jar).
+3. Download the latest IOMETE Arrow Flight SQL JDBC driver from the [iomete-artifacts](https://github.com/iomete/iomete-artifacts) repository. Driver files follow the naming convention `flight-sql-jdbc-driver-<upstream>-iomete.<release>.jar`.
 
 The connector does not bundle the JDBC driver.
 
@@ -117,7 +117,7 @@ TLS encryption is always enabled. **Disable Certificate Verification** skips val
 ## Troubleshooting
 
 - If the connector does not appear, confirm the connector and driver are in the correct directories, then either import `iomete-taco.cer` into Tableau's JRE truststore or disable signature verification for testing.
-- If Tableau cannot find the driver, confirm the filename is `flight-sql-jdbc-driver-19.0.0-iomete.3.jar` and that it is in the driver directory for the Tableau host.
+- If Tableau cannot find the driver, confirm the latest `flight-sql-jdbc-driver-<upstream>-iomete.<release>.jar` file is in the driver directory for the Tableau host.
 - If a valid connection fails, confirm that the compute cluster is running and that the server, cluster, namespace, username, and access token are correct.
 
 ## Maintain the connector
