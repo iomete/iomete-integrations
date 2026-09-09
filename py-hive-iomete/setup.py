@@ -28,7 +28,7 @@ test_deps = [
     'pytest-cov',
     'requests>=1.0.0',
     'sqlalchemy>=1.3.0,<=1.4.46',
-    'thrift==0.22.0',
+    'thrift>=0.24.0,<0.25.0',
 ]
 
 setup(
@@ -50,14 +50,14 @@ setup(
     install_requires=[
         'future',
         'python-dateutil',
-        'thrift==0.22.0'
+        'thrift>=0.24.0,<0.25.0'
     ],
     extras_require={
         'sqlalchemy': ['sqlalchemy>=1.3.0,<=1.4.46'],
         'test': test_deps,
         'presto': ['requests>=1.0.0'],
         'trino': ['requests>=1.0.0'],
-        'hive': ['sasl>=0.2.1', 'thrift>=0.10.0', 'thrift_sasl>=0.1.0'],
+        'hive': ['sasl>=0.2.1', 'thrift>=0.24.0,<0.25.0', 'thrift_sasl>=0.1.0'],
         'kerberos': ['requests_kerberos>=0.12.0'],
     },
     tests_require=test_deps,
