@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<dialect name="IOMETE Spark SQL" class="iomete" base="Hive12Dialect" version="18.1"/>

@@ -25,3 +25,6 @@ nb-configuration.xml
 *.swp
 *.swo
 
+# Tableau connector local files
+tableau-connector/build/
+tableau-connector/docs/
