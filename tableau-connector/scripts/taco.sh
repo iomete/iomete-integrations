@@ -49,6 +49,8 @@ run_packager() {
     echo "Validation failed. Full log: ${log_dir}/packaging_logs.txt" >&2
     return 1
   fi
+
+  rm -rf "${log_dir}"
 }
 
 validate() {

@@ -126,11 +126,37 @@ test("passes credentials only as JDBC properties", () => {
   assert.equal(properties.password, "token=with-special/value");
 });
 
+test("the server field rejects anything that is not a bare host", () => {
+  const fields = readConnectorFile("connectionFields.xml");
+  const [, pattern] = fields.match(
+    /name="server"[\s\S]*?<validation-rule reg-exp="([^"]+)"/,
+  ) || [];
+
+  assert.ok(pattern, "connectionFields.xml declares no validation rule for server");
+
+  const rule = new RegExp(pattern);
+
+  for (const host of ["release.iomete.cloud", "iomete", "data-plane-1.eu.iomete.cloud"]) {
+    assert.ok(rule.test(host), `${host} should be accepted`);
+  }
+
+  for (const invalid of [
+    "https://release.iomete.cloud",
+    "release.iomete.cloud/flight",
+    "release.iomete.cloud:443",
+    "release.iomete.cloud?x=1",
+    "release .iomete.cloud",
+    "",
+  ]) {
+    assert.ok(!rule.test(invalid), `${invalid} should be rejected`);
+  }
+});
+
 test("every v- attribute read by the builder is declared in the connector XML", () => {
   const builder = readConnectorFile("connectionBuilder.js");
   const fields = readConnectorFile("connectionFields.xml");
   const resolver = readConnectorFile("connectionResolver.tdr");
-  const used = new Set(builder.match(/"v-[a-z-]+"/g).map((token) => token.slice(1, -1)));
+  const used = new Set((builder.match(/"v-[a-z-]+"/g) || []).map((token) => token.slice(1, -1)));
 
   assert.ok(used.size > 0);
 
