@@ -1,3 +1,61 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<dialect name="IOMETE Spark SQL" class="iomete" base="Hive12Dialect" version="18.1"/>
+<dialect name="IOMETE Spark SQL" class="iomete" base="Hive12Dialect" version="18.1">
+  <function-map>
+    <function group='numeric' name='ATAN2' return-type='real'>
+      <formula>ATAN2(%1, %2)</formula>
+      <argument type='real' />
+      <argument type='real' />
+    </function>
+    <function group='numeric' name='CHAR' return-type='str'>
+      <formula>CHAR(%1)</formula>
+      <argument type='int' />
+    </function>
+    <function group='string' name='STARTSWITH' return-type='bool'>
+      <formula>STARTSWITH(%1, %2)</formula>
+      <argument type='str' />
+      <argument type='str' />
+    </function>
+    <!-- The Hive base interpolates the search term into a regex. -->
+    <function group='string' name='CONTAINS' return-type='bool'>
+      <formula>(INSTR(%1, %2) &gt; 0)</formula>
+      <argument type='str' />
+      <argument type='str' />
+    </function>
+    <function group='operator' name='$IN_SET$' return-type='bool'>
+      <formula>%1 IN (%2, %3, %4)</formula>
+      <argument type='date' />
+      <argument type='datetime' />
+      <argument type='datetime' />
+      <argument type='datetime' />
+    </function>
+    <!-- Tableau counts days from 1900-01-01; the Hive base returns epoch seconds. -->
+    <function group='cast' name='FLOAT' return-type='real'>
+      <formula>CAST(DATEDIFF(CAST(%1 AS DATE), CAST('1900-01-01' AS DATE)) AS DOUBLE)</formula>
+      <argument type='date' />
+    </function>
+    <function group='cast' name='INT' return-type='int'>
+      <formula>DATEDIFF(CAST(%1 AS DATE), CAST('1900-01-01' AS DATE))</formula>
+      <argument type='date' />
+    </function>
+    <!-- CAST truncates toward zero, which moves negative epoch values forward. -->
+    <function group='cast' name='DATE' return-type='date'>
+      <formula>CAST(FROM_UNIXTIME(CAST(FLOOR(%1) AS BIGINT),'yyyy-MM-dd') AS DATE)</formula>
+      <argument type='real' />
+    </function>
+    <function group='cast' name='DATETIME' return-type='datetime'>
+      <formula>CAST(FROM_UNIXTIME(CAST(FLOOR(%1) AS BIGINT)) AS TIMESTAMP)</formula>
+      <argument type='real' />
+    </function>
+    <date-function name='DATENAME' return-type='str'>
+      <formula part='minute'>CAST(MINUTE(%2) AS STRING)</formula>
+      <formula part='second'>CAST(SECOND(%2) AS STRING)</formula>
+      <argument type='localstr' />
+      <argument type='datetime' />
+    </date-function>
+    <native-split-function>
+      <formula part='left'>SPLIT(%1, %2)[%3-1]</formula>
+      <formula part='right'>REVERSE(SPLIT(REVERSE(%1), REVERSE(%2))[ABS(%3)-1])</formula>
+    </native-split-function>
+  </function-map>
+</dialect>
