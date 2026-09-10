@@ -102,6 +102,8 @@ export IOMETE_ACCESS_TOKEN='your-access-token'
 ./tdvt/run.py run
 ```
 
+`TDVT_THREADS` sets how many test suites run at once and defaults to `6`. Each thread is another `tabquerytool` process with its own cluster connection. Use `TDVT_THREADS=1` for serial output when chasing a flaky failure.
+
 The runner validates the prepared TDS files. It writes the token to `tdvt/.local/tds/iomete.password` with mode `0600` during the run and removes it afterward.
 
 A successful run exits with status `0`. Review:

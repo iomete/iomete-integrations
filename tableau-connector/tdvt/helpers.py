@@ -256,6 +256,13 @@ def validate_tds_files():
     return schemas.pop()
 
 
+def threads():
+    value = os.environ.get("TDVT_THREADS", "6")
+    if not re.fullmatch(r"[1-9][0-9]?", value):
+        raise TdvtError("TDVT_THREADS must be a number between 1 and 99.")
+    return value
+
+
 def render_config(schema):
     source = TDVT_ROOT / "config/iomete.ini"
     output = LOCAL_DIR / "config/iomete.ini"
@@ -264,6 +271,7 @@ def render_config(schema):
         {
             "__IOMETE_SCHEMA__": schema,
             "__CONNECTOR_ROOT__": CONNECTOR_ROOT,
+            "__TDVT_THREADS__": threads(),
         },
         source.name,
     )
