@@ -5,9 +5,16 @@ Tableau's Test Datasource Verification Tool (TDVT) exercises the connector throu
 You need:
 
 - macOS with Tableau Desktop 2024.2
+- the macOS region set to United States
 - the IOMETE JDBC driver in `~/Library/Tableau/Drivers/`
 - a running non-production IOMETE compute cluster
 - a writable test catalog and schema
+
+Tableau reads the tests' `#7/4/1972#` literals with the macOS region, so any other region turns July 4th into April 7th.
+
+```bash
+defaults write -g AppleLocale -string en_US
+```
 
 The generated virtual environment, TDS files, credentials, logs, and results stay in the ignored `tdvt/.local/` directory.
 

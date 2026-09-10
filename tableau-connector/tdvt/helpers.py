@@ -271,9 +271,27 @@ def render_config(schema):
     output.write_text(document, encoding="utf-8")
 
 
+def require_us_region():
+    """Tableau parses the tests' #M/D/YYYY# literals with the macOS region."""
+    result = subprocess.run(
+        ["defaults", "read", "-g", "AppleLocale"],
+        capture_output=True,
+        text=True,
+    )
+    locale = result.stdout.strip()
+    if not locale.endswith("_US"):
+        raise TdvtError(
+            f"macOS region is {locale or 'unset'}; TDVT date tests need United States.\n"
+            "  defaults write -g AppleLocale -string en_US\n"
+            "Quit Tableau afterwards so the new region is picked up."
+        )
+
+
 def run_tdvt():
     if not os.access(PYTHON, os.X_OK):
         raise TdvtError("Run ./tdvt/run.py setup first.")
+
+    require_us_region()
 
     tabquerytool = tableau_cli()
 
