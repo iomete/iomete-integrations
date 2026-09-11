@@ -301,6 +301,9 @@ def run_tdvt():
 
     require_us_region()
 
+    # tabquerytool's JVM reads TZ; a non-UTC zone shifts every timestamp tuple.
+    os.environ["TZ"] = "UTC"
+
     tabquerytool = tableau_cli()
 
     if not os.access(tabquerytool, os.X_OK):

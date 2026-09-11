@@ -12,6 +12,8 @@ You need:
 
 Tableau reads the tests' `#7/4/1972#` literals with the macOS region, so any other region turns July 4th into April 7th.
 
+The runner also forces `TZ=UTC` for `tabquerytool`. Expected tuples are warehouse wall-clock values, and the JDBC driver shifts timestamps by the JVM zone's offset, so a non-UTC machine fails every timestamp test.
+
 ```bash
 defaults write -g AppleLocale -string en_US
 ```

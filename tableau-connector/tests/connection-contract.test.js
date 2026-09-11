@@ -37,7 +37,7 @@ test("builds an encrypted, credential-free URL for all catalogs", () => {
 
   assert.equal(
     url,
-    "jdbc:arrow-flight-sql://release.iomete.cloud:443?cluster=dbt%20compute%2Fprimary&data-plane=spark%20resources%20%26%201&useEncryption=true",
+    "jdbc:arrow-flight-sql://release.iomete.cloud:443?cluster=dbt%20compute%2Fprimary&data-plane=spark%20resources%20%26%201&useEncryption=true&compatibilityMode=tableau",
   );
 });
 
@@ -60,7 +60,7 @@ test("disables certificate verification only when opted in", () => {
     ...attributes,
     "v-disable-cert-verification": "true",
   });
-  assert.match(optedInUrl, /&useEncryption=true&disableCertificateVerification=true$/);
+  assert.match(optedInUrl, /&compatibilityMode=tableau&disableCertificateVerification=true$/);
 });
 
 test("sends tunables only when they are supplied", () => {
@@ -109,7 +109,7 @@ test("adds an encoded catalog scope when a catalog is supplied", () => {
 
   assert.equal(
     url,
-    "jdbc:arrow-flight-sql://release.iomete.cloud:443?cluster=dbt-compute&data-plane=spark-resources-1&useEncryption=true&catalogFilterEnabled=true&schema=finance%2Feu%20%26%20shared",
+    "jdbc:arrow-flight-sql://release.iomete.cloud:443?cluster=dbt-compute&data-plane=spark-resources-1&useEncryption=true&compatibilityMode=tableau&catalogFilterEnabled=true&schema=finance%2Feu%20%26%20shared",
   );
 });
 
