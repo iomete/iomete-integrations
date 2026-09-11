@@ -135,6 +135,10 @@ node --test tests/*.test.js
 
 Pull requests that change `tableau-connector/**` run both checks in `.github/workflows/tableau-connector-pr-check.yml`.
 
+### Run TDVT locally
+
+TDVT needs Tableau Desktop and a running IOMETE compute cluster. Follow the [local TDVT instructions](tdvt/README.md).
+
 ### Build locally
 
 Build an unsigned development package in `build/`, or pass another destination to the command:

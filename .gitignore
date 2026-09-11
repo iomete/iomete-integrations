@@ -28,3 +28,5 @@ nb-configuration.xml
 # Tableau connector local files
 tableau-connector/build/
 tableau-connector/docs/
+tableau-connector/tdvt/.local/
+tableau-connector/tdvt/__pycache__/

@@ -8,7 +8,7 @@
     encodeURIComponent(attr["v-compute-cluster"]) +
     "&data-plane=" +
     encodeURIComponent(attr["v-namespace"]) +
-    "&useEncryption=true";
+    "&useEncryption=true&compatibilityMode=tableau";
 
   if (attr["v-disable-cert-verification"] === "true") {
     url += "&disableCertificateVerification=true";
