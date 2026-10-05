@@ -6,7 +6,7 @@ pytest==9.0.3
 pytest-cov==2.5.1
 pytest-flake8==0.8.1
 pytest-random==0.2
-pytest-timeout==1.2.0
+pytest-timeout==1.2.1
 
 # actual dependencies: let things break if a package changes
 requests>=2.33.1
