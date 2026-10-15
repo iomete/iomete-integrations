@@ -220,32 +220,32 @@ class TestSerializeToDict(unittest.TestCase):
 
 class TestApplicationStateType(unittest.TestCase):
     def test_terminal_states(self):
-        self.assertTrue(ApplicationStateType.CompletedState.is_final)
-        self.assertTrue(ApplicationStateType.FailedState.is_final)
-        self.assertTrue(ApplicationStateType.SubmissionFailedState.is_final)
-        self.assertTrue(ApplicationStateType.AbortedState.is_final)
+        self.assertTrue(ApplicationStateType.Completed.is_final)
+        self.assertTrue(ApplicationStateType.Failed.is_final)
+        self.assertTrue(ApplicationStateType.SubmissionFailed.is_final)
+        self.assertTrue(ApplicationStateType.Aborted.is_final)
 
     def test_non_terminal_states(self):
         non_terminal = [
-            ApplicationStateType.OrchestratorEnqueuedState,
-            ApplicationStateType.EnqueuedState,
-            ApplicationStateType.SubmittedState,
-            ApplicationStateType.RunningState,
-            ApplicationStateType.PendingRerunState,
-            ApplicationStateType.SucceedingState,
-            ApplicationStateType.FailingState,
-            ApplicationStateType.InvalidatingState,
-            ApplicationStateType.AbortingState,
-            ApplicationStateType.UnknownState,
+            ApplicationStateType.OrchestratorEnqueued,
+            ApplicationStateType.Enqueued,
+            ApplicationStateType.Submitted,
+            ApplicationStateType.Running,
+            ApplicationStateType.PendingRerun,
+            ApplicationStateType.Succeeding,
+            ApplicationStateType.Failing,
+            ApplicationStateType.Invalidating,
+            ApplicationStateType.Aborting,
+            ApplicationStateType.Unknown,
         ]
         for state in non_terminal:
             self.assertFalse(state.is_final, f"{state.name} should not be terminal")
 
     def test_is_successful(self):
-        self.assertTrue(ApplicationStateType.CompletedState.is_successful)
-        self.assertFalse(ApplicationStateType.FailedState.is_successful)
-        self.assertFalse(ApplicationStateType.SubmissionFailedState.is_successful)
-        self.assertFalse(ApplicationStateType.AbortedState.is_successful)
+        self.assertTrue(ApplicationStateType.Completed.is_successful)
+        self.assertFalse(ApplicationStateType.Failed.is_successful)
+        self.assertFalse(ApplicationStateType.SubmissionFailed.is_successful)
+        self.assertFalse(ApplicationStateType.Aborted.is_successful)
 
 
 class TestIometeHook(unittest.TestCase):

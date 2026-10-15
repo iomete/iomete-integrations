@@ -173,30 +173,30 @@ def _get_state_from_app(app):
 
 
 class ApplicationStateType(Enum):
-    OrchestratorEnqueuedState = "ORCHESTRATOR_ENQUEUED"
-    EnqueuedState = "ENQUEUED"
-    SubmittedState = "SUBMITTED"
-    SubmissionFailedState = "SUBMISSION_FAILED"
-    RunningState = "RUNNING"
-    PendingRerunState = "PENDING_RERUN"
-    SucceedingState = "SUCCEEDING"
-    CompletedState = "COMPLETED"
-    FailingState = "FAILING"
-    FailedState = "FAILED"
-    InvalidatingState = "INVALIDATING"
-    AbortedState = "ABORTED"
-    AbortingState = "ABORTING"
-    UnknownState = "UNKNOWN"
+    OrchestratorEnqueued = "ORCHESTRATOR_ENQUEUED"
+    Enqueued = "ENQUEUED"
+    Submitted = "SUBMITTED"
+    SubmissionFailed = "SUBMISSION_FAILED"
+    Running = "RUNNING"
+    PendingRerun = "PENDING_RERUN"
+    Succeeding = "SUCCEEDING"
+    Completed = "COMPLETED"
+    Failing = "FAILING"
+    Failed = "FAILED"
+    Invalidating = "INVALIDATING"
+    Aborted = "ABORTED"
+    Aborting = "ABORTING"
+    Unknown = "UNKNOWN"
 
     @property
     def is_final(self) -> bool:
         return self in [
-            ApplicationStateType.CompletedState,
-            ApplicationStateType.FailedState,
-            ApplicationStateType.SubmissionFailedState,
-            ApplicationStateType.AbortedState,
+            ApplicationStateType.Completed,
+            ApplicationStateType.Failed,
+            ApplicationStateType.SubmissionFailed,
+            ApplicationStateType.Aborted,
         ]
 
     @property
     def is_successful(self) -> bool:
-        return self == ApplicationStateType.CompletedState
+        return self == ApplicationStateType.Completed
