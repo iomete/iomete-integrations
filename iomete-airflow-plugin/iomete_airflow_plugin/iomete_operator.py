@@ -134,13 +134,12 @@ class IometeOperator(BaseOperator):
             try:
                 app = hook.get_job_run(self.job_id, self.run_id)
                 consecutive_errors = 0
-            except ClientError as e:
-                if e.status != 429 and e.status < 500:
-                    raise AirflowException(f"Non-retryable API error (HTTP {e.status}): {e.content}")
+            except (ClientError, requests.exceptions.RequestException) as e:
+                if isinstance(e, ClientError) and e.status != 429 and e.status < 500:
+                    raise AirflowException(f"Non-retryable API error (HTTP {e.status}): {e.content}") from e
                 consecutive_errors += 1
                 self.log.warning(
-                    "Server error fetching job status (HTTP %d, attempt %d/%d): %s",
-                    e.status,
+                    "Transient error fetching job status (attempt %d/%d): %s",
                     consecutive_errors,
                     max_consecutive_errors,
                     e,
@@ -148,21 +147,7 @@ class IometeOperator(BaseOperator):
                 if consecutive_errors >= max_consecutive_errors:
                     raise AirflowException(
                         f"Failed to get job status after {max_consecutive_errors} consecutive attempts: {e}"
-                    )
-                time.sleep(self.polling_period_seconds)
-                continue
-            except requests.exceptions.RequestException as e:
-                consecutive_errors += 1
-                self.log.warning(
-                    "Network error fetching job status (attempt %d/%d): %s",
-                    consecutive_errors,
-                    max_consecutive_errors,
-                    e,
-                )
-                if consecutive_errors >= max_consecutive_errors:
-                    raise AirflowException(
-                        f"Failed to get job status after {max_consecutive_errors} consecutive attempts: {e}"
-                    )
+                    ) from e
                 time.sleep(self.polling_period_seconds)
                 continue
 
