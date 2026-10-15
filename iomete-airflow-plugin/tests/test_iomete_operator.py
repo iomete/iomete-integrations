@@ -411,15 +411,32 @@ class TestSerializeToDict(unittest.TestCase):
 
 
 class TestApplicationStateType(unittest.TestCase):
-    def test_application_state_type_is_final(self):
+    def test_terminal_states(self):
         self.assertTrue(ApplicationStateType.CompletedState.is_final)
         self.assertTrue(ApplicationStateType.FailedState.is_final)
+        self.assertTrue(ApplicationStateType.SubmissionFailedState.is_final)
         self.assertTrue(ApplicationStateType.AbortedState.is_final)
-        self.assertFalse(ApplicationStateType.RunningState.is_final)
 
-    def test_application_state_type_is_successful(self):
+    def test_non_terminal_states(self):
+        non_terminal = [
+            ApplicationStateType.OrchestratorEnqueuedState,
+            ApplicationStateType.EnqueuedState,
+            ApplicationStateType.SubmittedState,
+            ApplicationStateType.RunningState,
+            ApplicationStateType.PendingRerunState,
+            ApplicationStateType.SucceedingState,
+            ApplicationStateType.FailingState,
+            ApplicationStateType.InvalidatingState,
+            ApplicationStateType.AbortingState,
+            ApplicationStateType.UnknownState,
+        ]
+        for state in non_terminal:
+            self.assertFalse(state.is_final, f"{state.name} should not be terminal")
+
+    def test_is_successful(self):
         self.assertTrue(ApplicationStateType.CompletedState.is_successful)
         self.assertFalse(ApplicationStateType.FailedState.is_successful)
+        self.assertFalse(ApplicationStateType.SubmissionFailedState.is_successful)
         self.assertFalse(ApplicationStateType.AbortedState.is_successful)
 
 
