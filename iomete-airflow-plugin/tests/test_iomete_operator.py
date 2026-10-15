@@ -290,8 +290,7 @@ class TestMonitorAppRetry(unittest.TestCase):
         mock_hook = mock_hook_class.return_value
         mock_hook.submit_job_run.return_value = {"id": "run1"}
         mock_hook.get_job_run.side_effect = [
-            ClientError(status=500, content={"error": "Internal Server Error"})
-            for _ in range(5)
+            ClientError(status=500, content={"error": "Internal Server Error"}) for _ in range(5)
         ]
 
         operator = self._operator()
@@ -327,8 +326,7 @@ class TestMonitorAppRetry(unittest.TestCase):
         mock_hook = mock_hook_class.return_value
         mock_hook.submit_job_run.return_value = {"id": "run1"}
         mock_hook.get_job_run.side_effect = [
-            requests.exceptions.ConnectionError("Connection refused")
-            for _ in range(5)
+            requests.exceptions.ConnectionError("Connection refused") for _ in range(5)
         ]
 
         operator = self._operator()

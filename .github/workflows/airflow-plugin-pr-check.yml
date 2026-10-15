@@ -35,6 +35,23 @@ jobs:
       - name: Run tests
         run: poetry run pytest tests/ -v
 
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Install dependencies
+        run: poetry install
+
       - name: Check formatting
         run: |
           poetry run black --check .

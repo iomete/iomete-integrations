@@ -81,21 +81,15 @@ class IometeOperator(BaseOperator):
         if not self.domain:
             raise AirflowException("Parameter `domain` should be specified.")
         if self.access_token and self.access_token_variable:
-            raise AirflowException(
-                "Specify only one of `access_token` or `access_token_variable`, not both."
-            )
+            raise AirflowException("Specify only one of `access_token` or `access_token_variable`, not both.")
         if not self.access_token and not self.access_token_variable:
-            raise AirflowException(
-                "Either `access_token` or `access_token_variable` must be specified."
-            )
+            raise AirflowException("Either `access_token` or `access_token_variable` must be specified.")
 
     def _resolve_access_token(self) -> str:
         if self.access_token_variable:
             token = Variable.get(self.access_token_variable, default_var=None)
             if not token:
-                raise AirflowException(
-                    f"Airflow Variable `{self.access_token_variable}` is not set or empty."
-                )
+                raise AirflowException(f"Airflow Variable `{self.access_token_variable}` is not set or empty.")
             return token
         return self.access_token
 
@@ -146,7 +140,10 @@ class IometeOperator(BaseOperator):
                 consecutive_errors += 1
                 self.log.warning(
                     "Server error fetching job status (HTTP %d, attempt %d/%d): %s",
-                    e.status, consecutive_errors, max_consecutive_errors, e,
+                    e.status,
+                    consecutive_errors,
+                    max_consecutive_errors,
+                    e,
                 )
                 if consecutive_errors >= max_consecutive_errors:
                     raise AirflowException(
@@ -158,7 +155,9 @@ class IometeOperator(BaseOperator):
                 consecutive_errors += 1
                 self.log.warning(
                     "Network error fetching job status (attempt %d/%d): %s",
-                    consecutive_errors, max_consecutive_errors, e,
+                    consecutive_errors,
+                    max_consecutive_errors,
+                    e,
                 )
                 if consecutive_errors >= max_consecutive_errors:
                     raise AirflowException(
@@ -173,9 +172,7 @@ class IometeOperator(BaseOperator):
                     self.log.info("%s completed successfully.", self.task_id)
                     return
                 else:
-                    raise AirflowException(
-                        f"{self.task_id} failed with terminal state: {app_state.value}"
-                    )
+                    raise AirflowException(f"{self.task_id} failed with terminal state: {app_state.value}")
             else:
                 self.log.info("%s in app state: %s", self.task_id, app_state.value)
                 self.log.info("Sleeping for %s seconds.", self.polling_period_seconds)
