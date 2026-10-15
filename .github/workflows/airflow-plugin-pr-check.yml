@@ -54,5 +54,5 @@ jobs:
 
       - name: Check formatting
         run: |
-          poetry run black --check .
-          poetry run isort --check .
+          poetry run black --check iomete_airflow_plugin tests
+          poetry run isort --check iomete_airflow_plugin tests
