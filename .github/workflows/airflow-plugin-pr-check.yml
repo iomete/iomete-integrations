@@ -1,0 +1,41 @@
+name: PR Check for iomete-airflow-plugin
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'iomete-airflow-plugin/**'
+      - '.github/workflows/airflow-plugin-pr-check.yml'
+
+defaults:
+  run:
+    working-directory: iomete-airflow-plugin
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Run tests
+        run: poetry run pytest tests/ -v
+
+      - name: Check formatting
+        run: |
+          poetry run black --check .
+          poetry run isort --check .
