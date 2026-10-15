@@ -3,8 +3,10 @@ import time
 from enum import Enum
 from typing import Dict, Optional, Union
 
+import requests
 from airflow.exceptions import AirflowException
 from airflow.models import BaseOperator, Variable
+from iomete_sdk.api_utils import ClientError
 
 from iomete_airflow_plugin.hook import IometeHook
 
@@ -79,21 +81,15 @@ class IometeOperator(BaseOperator):
         if not self.domain:
             raise AirflowException("Parameter `domain` should be specified.")
         if self.access_token and self.access_token_variable:
-            raise AirflowException(
-                "Specify only one of `access_token` or `access_token_variable`, not both."
-            )
+            raise AirflowException("Specify only one of `access_token` or `access_token_variable`, not both.")
         if not self.access_token and not self.access_token_variable:
-            raise AirflowException(
-                "Either `access_token` or `access_token_variable` must be specified."
-            )
+            raise AirflowException("Either `access_token` or `access_token_variable` must be specified.")
 
     def _resolve_access_token(self) -> str:
         if self.access_token_variable:
             token = Variable.get(self.access_token_variable, default_var=None)
             if not token:
-                raise AirflowException(
-                    f"Airflow Variable `{self.access_token_variable}` is not set or empty."
-                )
+                raise AirflowException(f"Airflow Variable `{self.access_token_variable}` is not set or empty.")
             return token
         return self.access_token
 
@@ -131,16 +127,37 @@ class IometeOperator(BaseOperator):
         if self.do_xcom_push:
             context["ti"].xcom_push(key=XCOM_RUN_ID_KEY, value=self.run_id)
 
+        max_consecutive_errors = 5
+        consecutive_errors = 0
+
         while True:
-            app = hook.get_job_run(self.job_id, self.run_id)
+            try:
+                app = hook.get_job_run(self.job_id, self.run_id)
+                consecutive_errors = 0
+            except (ClientError, requests.exceptions.RequestException) as e:
+                if isinstance(e, ClientError) and e.status != 429 and e.status < 500:
+                    raise AirflowException(f"Non-retryable API error (HTTP {e.status}): {e.content}") from e
+                consecutive_errors += 1
+                self.log.warning(
+                    "Transient error fetching job status (attempt %d/%d): %s",
+                    consecutive_errors,
+                    max_consecutive_errors,
+                    e,
+                )
+                if consecutive_errors >= max_consecutive_errors:
+                    raise AirflowException(
+                        f"Failed to get job status after {max_consecutive_errors} consecutive attempts: {e}"
+                    ) from e
+                time.sleep(self.polling_period_seconds)
+                continue
+
             app_state = _get_state_from_app(app)
             if app_state.is_final:
                 if app_state.is_successful:
                     self.log.info("%s completed successfully.", self.task_id)
                     return
                 else:
-                    error_message = "{t} failed with terminal state: {s}".format(t=self.task_id, s=app_state.value)
-                    raise AirflowException(error_message)
+                    raise AirflowException(f"{self.task_id} failed with terminal state: {app_state.value}")
             else:
                 self.log.info("%s in app state: %s", self.task_id, app_state.value)
                 self.log.info("Sleeping for %s seconds.", self.polling_period_seconds)

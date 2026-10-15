@@ -2,8 +2,10 @@ import unittest
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
+import requests
 from airflow import DAG
 from airflow.exceptions import AirflowException
+from iomete_sdk.api_utils import ClientError
 
 from iomete_airflow_plugin.hook import IometeHook
 from iomete_airflow_plugin.iomete_operator import (
@@ -194,6 +196,196 @@ class TestIometeOperator(unittest.TestCase):
             host_verify=True,
         )
         mock_hook.cancel_job_run.assert_called_once_with(self.job_id, "test_run_id")
+
+
+class TestMonitorAppRetry(unittest.TestCase):
+    def setUp(self):
+        self.job_id = "test_job_id"
+        self.host = "https://test.iomete.com"
+        self.domain = "test_domain"
+        self.access_token = "test_token"
+        self.task_id = "test_task"
+
+    def _operator(self, **overrides):
+        kwargs = dict(
+            job_id=self.job_id,
+            host=self.host,
+            domain=self.domain,
+            access_token=self.access_token,
+            task_id=self.task_id,
+        )
+        kwargs.update(overrides)
+        return IometeOperator(**kwargs)
+
+    @patch("iomete_airflow_plugin.iomete_operator.IometeHook")
+    def test_retries_on_500_then_succeeds(self, mock_hook_class):
+        mock_hook = mock_hook_class.return_value
+        mock_hook.submit_job_run.return_value = {"id": "run1"}
+        mock_hook.get_job_run.side_effect = [
+            ClientError(status=500, content={"error": "Internal Server Error"}),
+            ClientError(status=502, content={"error": "Bad Gateway"}),
+            {"driverStatus": "COMPLETED"},
+        ]
+
+        operator = self._operator()
+        context = {"ti": MagicMock()}
+
+        with patch("time.sleep", return_value=None):
+            operator.execute(context)
+
+        self.assertEqual(mock_hook.get_job_run.call_count, 3)
+
+    @patch("iomete_airflow_plugin.iomete_operator.IometeHook")
+    def test_retries_on_429_then_succeeds(self, mock_hook_class):
+        mock_hook = mock_hook_class.return_value
+        mock_hook.submit_job_run.return_value = {"id": "run1"}
+        mock_hook.get_job_run.side_effect = [
+            ClientError(status=429, content={"error": "Too Many Requests"}),
+            ClientError(status=429, content={"error": "Too Many Requests"}),
+            {"driverStatus": "COMPLETED"},
+        ]
+
+        operator = self._operator()
+        context = {"ti": MagicMock()}
+
+        with patch("time.sleep", return_value=None):
+            operator.execute(context)
+
+        self.assertEqual(mock_hook.get_job_run.call_count, 3)
+
+    @patch("iomete_airflow_plugin.iomete_operator.IometeHook")
+    def test_fails_immediately_on_4xx(self, mock_hook_class):
+        mock_hook = mock_hook_class.return_value
+        mock_hook.submit_job_run.return_value = {"id": "run1"}
+        mock_hook.get_job_run.side_effect = ClientError(status=404, content={"error": "Not Found"})
+
+        operator = self._operator()
+        context = {"ti": MagicMock()}
+
+        with patch("time.sleep", return_value=None):
+            with self.assertRaises(AirflowException) as ctx:
+                operator.execute(context)
+
+        self.assertIn("Non-retryable API error (HTTP 404)", str(ctx.exception))
+        self.assertEqual(mock_hook.get_job_run.call_count, 1)
+
+    @patch("iomete_airflow_plugin.iomete_operator.IometeHook")
+    def test_fails_immediately_on_401(self, mock_hook_class):
+        mock_hook = mock_hook_class.return_value
+        mock_hook.submit_job_run.return_value = {"id": "run1"}
+        mock_hook.get_job_run.side_effect = ClientError(status=401, content={"error": "Unauthorized"})
+
+        operator = self._operator()
+        context = {"ti": MagicMock()}
+
+        with patch("time.sleep", return_value=None):
+            with self.assertRaises(AirflowException) as ctx:
+                operator.execute(context)
+
+        self.assertIn("Non-retryable API error (HTTP 401)", str(ctx.exception))
+        self.assertEqual(mock_hook.get_job_run.call_count, 1)
+
+    @patch("iomete_airflow_plugin.iomete_operator.IometeHook")
+    def test_fails_after_max_consecutive_500_errors(self, mock_hook_class):
+        mock_hook = mock_hook_class.return_value
+        mock_hook.submit_job_run.return_value = {"id": "run1"}
+        mock_hook.get_job_run.side_effect = [
+            ClientError(status=500, content={"error": "Internal Server Error"}) for _ in range(5)
+        ]
+
+        operator = self._operator()
+        context = {"ti": MagicMock()}
+
+        with patch("time.sleep", return_value=None):
+            with self.assertRaises(AirflowException) as ctx:
+                operator.execute(context)
+
+        self.assertIn("Failed to get job status after 5 consecutive attempts", str(ctx.exception))
+        self.assertEqual(mock_hook.get_job_run.call_count, 5)
+
+    @patch("iomete_airflow_plugin.iomete_operator.IometeHook")
+    def test_retries_on_network_error_then_succeeds(self, mock_hook_class):
+        mock_hook = mock_hook_class.return_value
+        mock_hook.submit_job_run.return_value = {"id": "run1"}
+        mock_hook.get_job_run.side_effect = [
+            requests.exceptions.ConnectionError("Connection refused"),
+            requests.exceptions.Timeout("Read timed out"),
+            {"driverStatus": "COMPLETED"},
+        ]
+
+        operator = self._operator()
+        context = {"ti": MagicMock()}
+
+        with patch("time.sleep", return_value=None):
+            operator.execute(context)
+
+        self.assertEqual(mock_hook.get_job_run.call_count, 3)
+
+    @patch("iomete_airflow_plugin.iomete_operator.IometeHook")
+    def test_fails_after_max_consecutive_network_errors(self, mock_hook_class):
+        mock_hook = mock_hook_class.return_value
+        mock_hook.submit_job_run.return_value = {"id": "run1"}
+        mock_hook.get_job_run.side_effect = [
+            requests.exceptions.ConnectionError("Connection refused") for _ in range(5)
+        ]
+
+        operator = self._operator()
+        context = {"ti": MagicMock()}
+
+        with patch("time.sleep", return_value=None):
+            with self.assertRaises(AirflowException) as ctx:
+                operator.execute(context)
+
+        self.assertIn("Failed to get job status after 5 consecutive attempts", str(ctx.exception))
+        self.assertEqual(mock_hook.get_job_run.call_count, 5)
+
+    @patch("iomete_airflow_plugin.iomete_operator.IometeHook")
+    def test_consecutive_error_counter_resets_on_success(self, mock_hook_class):
+        mock_hook = mock_hook_class.return_value
+        mock_hook.submit_job_run.return_value = {"id": "run1"}
+        mock_hook.get_job_run.side_effect = [
+            # 4 errors, then a success (resets counter), then 4 more errors, then complete
+            ClientError(status=500, content={}),
+            ClientError(status=500, content={}),
+            ClientError(status=500, content={}),
+            ClientError(status=500, content={}),
+            {"driverStatus": "RUNNING"},  # resets counter
+            ClientError(status=500, content={}),
+            ClientError(status=500, content={}),
+            ClientError(status=500, content={}),
+            ClientError(status=500, content={}),
+            {"driverStatus": "COMPLETED"},
+        ]
+
+        operator = self._operator()
+        context = {"ti": MagicMock()}
+
+        with patch("time.sleep", return_value=None):
+            operator.execute(context)
+
+        self.assertEqual(mock_hook.get_job_run.call_count, 10)
+
+    @patch("iomete_airflow_plugin.iomete_operator.IometeHook")
+    def test_mixed_500_and_network_errors_share_counter(self, mock_hook_class):
+        mock_hook = mock_hook_class.return_value
+        mock_hook.submit_job_run.return_value = {"id": "run1"}
+        mock_hook.get_job_run.side_effect = [
+            ClientError(status=500, content={}),
+            requests.exceptions.ConnectionError("Connection refused"),
+            ClientError(status=503, content={}),
+            requests.exceptions.Timeout("Read timed out"),
+            ClientError(status=500, content={}),
+        ]
+
+        operator = self._operator()
+        context = {"ti": MagicMock()}
+
+        with patch("time.sleep", return_value=None):
+            with self.assertRaises(AirflowException) as ctx:
+                operator.execute(context)
+
+        self.assertIn("Failed to get job status after 5 consecutive attempts", str(ctx.exception))
+        self.assertEqual(mock_hook.get_job_run.call_count, 5)
 
 
 class TestSerializeToDict(unittest.TestCase):
