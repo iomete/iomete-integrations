@@ -190,26 +190,30 @@ def _get_state_from_app(app):
 
 
 class ApplicationStateType(Enum):
-    EmptyState = "ENQUEUED"
-    DeployingState = "SUBMITTED"  # Usually takes ~1 min
-    RunningState = "RUNNING"
-    CompletedState = "COMPLETED"
-    FailedState = "FAILED"
-    AbortedState = "ABORTED"
-    AbortingState = "ABORTING"
-    ExecutorState = map(
-        {"RUNNING": 1},
-        {"PENDING": 1},  # Take ~1 min to scale executor
-    )
+    OrchestratorEnqueued = "ORCHESTRATOR_ENQUEUED"
+    Enqueued = "ENQUEUED"
+    Submitted = "SUBMITTED"
+    SubmissionFailed = "SUBMISSION_FAILED"
+    Running = "RUNNING"
+    PendingRerun = "PENDING_RERUN"
+    Succeeding = "SUCCEEDING"
+    Completed = "COMPLETED"
+    Failing = "FAILING"
+    Failed = "FAILED"
+    Invalidating = "INVALIDATING"
+    Aborted = "ABORTED"
+    Aborting = "ABORTING"
+    Unknown = "UNKNOWN"
 
     @property
     def is_final(self) -> bool:
         return self in [
-            ApplicationStateType.CompletedState,
-            ApplicationStateType.FailedState,
-            ApplicationStateType.AbortedState,
+            ApplicationStateType.Completed,
+            ApplicationStateType.Failed,
+            ApplicationStateType.SubmissionFailed,
+            ApplicationStateType.Aborted,
         ]
 
     @property
     def is_successful(self) -> bool:
-        return self == ApplicationStateType.CompletedState
+        return self == ApplicationStateType.Completed

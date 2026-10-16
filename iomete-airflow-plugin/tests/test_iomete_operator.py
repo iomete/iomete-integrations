@@ -411,16 +411,33 @@ class TestSerializeToDict(unittest.TestCase):
 
 
 class TestApplicationStateType(unittest.TestCase):
-    def test_application_state_type_is_final(self):
-        self.assertTrue(ApplicationStateType.CompletedState.is_final)
-        self.assertTrue(ApplicationStateType.FailedState.is_final)
-        self.assertTrue(ApplicationStateType.AbortedState.is_final)
-        self.assertFalse(ApplicationStateType.RunningState.is_final)
+    def test_terminal_states(self):
+        self.assertTrue(ApplicationStateType.Completed.is_final)
+        self.assertTrue(ApplicationStateType.Failed.is_final)
+        self.assertTrue(ApplicationStateType.SubmissionFailed.is_final)
+        self.assertTrue(ApplicationStateType.Aborted.is_final)
 
-    def test_application_state_type_is_successful(self):
-        self.assertTrue(ApplicationStateType.CompletedState.is_successful)
-        self.assertFalse(ApplicationStateType.FailedState.is_successful)
-        self.assertFalse(ApplicationStateType.AbortedState.is_successful)
+    def test_non_terminal_states(self):
+        non_terminal = [
+            ApplicationStateType.OrchestratorEnqueued,
+            ApplicationStateType.Enqueued,
+            ApplicationStateType.Submitted,
+            ApplicationStateType.Running,
+            ApplicationStateType.PendingRerun,
+            ApplicationStateType.Succeeding,
+            ApplicationStateType.Failing,
+            ApplicationStateType.Invalidating,
+            ApplicationStateType.Aborting,
+            ApplicationStateType.Unknown,
+        ]
+        for state in non_terminal:
+            self.assertFalse(state.is_final, f"{state.name} should not be terminal")
+
+    def test_is_successful(self):
+        self.assertTrue(ApplicationStateType.Completed.is_successful)
+        self.assertFalse(ApplicationStateType.Failed.is_successful)
+        self.assertFalse(ApplicationStateType.SubmissionFailed.is_successful)
+        self.assertFalse(ApplicationStateType.Aborted.is_successful)
 
 
 class TestIometeHook(unittest.TestCase):
