@@ -8,6 +8,9 @@ from dbt_common.exceptions import DbtRuntimeError, CompilationError
 
 from dbt.adapters.base import AdapterConfig, PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed
+from dbt.adapters.base.relation import AdapterTrackingRelationInfo
+from dbt.adapters.contracts.relation import RelationConfig
+from dbt.adapters.__about__ import version as dbt_adapters_version
 from dbt.adapters.sql import SQLAdapter
 from dbt.adapters.iomete import SparkConnectionManager
 from dbt.adapters.iomete import SparkRelation
@@ -20,6 +23,7 @@ from dbt_common.utils import executor
 from dbt_common.utils.executor import HasThreadingConfig
 import sentry_sdk
 
+from dbt.adapters.iomete.__version__ import version as dbt_iomete_version
 from dbt.adapters.iomete.python_job import IometeSparkJobHelper
 
 logger = AdapterLogger("iomete")
@@ -101,6 +105,18 @@ class SparkAdapter(SQLAdapter):
     @classmethod
     def convert_datetime_type(cls, agate_table, col_idx):
         return "timestamp"
+
+    @classmethod
+    def get_adapter_run_info(cls, config: RelationConfig) -> AdapterTrackingRelationInfo:
+        # dbt calls this after every node, tracking enabled or not. The base version
+        # imports dbt.adapters.<class name>.__version__, i.e. dbt.adapters.spark,
+        # which does not exist, so every node would fail.
+        return AdapterTrackingRelationInfo(
+            adapter_name=cls.type(),
+            base_adapter_version=dbt_adapters_version,
+            adapter_version=dbt_iomete_version,
+            model_adapter_details=cls._get_adapter_specific_run_info(config),
+        )
 
     def quote(self, identifier):
         return '`{}`'.format(identifier)

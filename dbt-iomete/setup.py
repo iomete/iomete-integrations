@@ -3,10 +3,10 @@ import os
 import sys
 import re
 
-# require python 3.6 or newer
-if sys.version_info < (3, 9):
+# require python 3.10 or newer
+if sys.version_info < (3, 10):
     print("Error: dbt does not support this version of Python.")
-    print("Please upgrade to Python 3.9 or higher.")
+    print("Please upgrade to Python 3.10 or higher.")
     sys.exit(1)
 
 
@@ -74,10 +74,10 @@ setup(
     packages=find_namespace_packages(include=["dbt", "dbt.*"]),
     include_package_data=True,
     install_requires=[
-        "protobuf==5.29.6",
+        "protobuf==6.33.6",
         "dbt-core~={}".format(dbt_core_version),
-        "dbt-adapters>=1.10.0,<2.0",
-        "dbt-common>=1.13.0,<2.0",
+        "dbt-adapters>=1.24.5,<2.0",
+        "dbt-common>=1.37.5,<2.0",
         "sqlparams>=3.0.0",
         "py-hive-iomete>=2.1.3",
         "sentry-sdk==2.20.0",
@@ -90,10 +90,9 @@ setup(
         "Operating System :: Microsoft :: Windows",
         "Operating System :: MacOS :: MacOS X",
         "Operating System :: POSIX :: Linux",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
     ],
-    python_requires=">=3.9",
+    python_requires=">=3.10",
 )
