@@ -366,3 +366,58 @@ class TestIncrementalStrategyValidation(unittest.TestCase):
                     self.exceptions.reset_mock()
                     self.assertIn("We only support 'iceberg' file format",
                                   self._validate(strategy, file_format=file_format))
+
+
+class TestSnapshotMergeMacro(unittest.TestCase):
+    """dbt 1.9+ snapshot configs: snapshot_meta_column_names and dbt_valid_to_current."""
+
+    def setUp(self):
+        # snapshot.sql holds a `{% materialization %}` block, which plain Jinja cannot parse
+        from dbt_common.clients.jinja import get_environment
+
+        jinja_env = get_environment()
+        jinja_env.loader = FileSystemLoader('dbt/include/iomete/macros')
+
+        self.config = {}
+        config = mock.Mock()
+        config.get = lambda key, default=None: self.config.get(key, default)
+
+        template = jinja_env.get_template('materializations/snapshot.sql', globals={
+            'config': config,
+            'get_snapshot_table_column_names': lambda: {'dbt_scd_id': 'dbt_scd_id',
+                                                        'dbt_valid_to': 'dbt_valid_to'},
+        })
+        self.merge_sql = template.module.dbt_macro__iomete__snapshot_merge_sql
+
+    def test_default_column_names(self):
+        sql = _squash(self.merge_sql('my_snapshot', 'my_snapshot__dbt_tmp', []))
+
+        self.assertEqual(sql,
+                         'merge into my_snapshot as DBT_INTERNAL_DEST '
+                         'using my_snapshot__dbt_tmp as DBT_INTERNAL_SOURCE '
+                         'on DBT_INTERNAL_SOURCE.dbt_scd_id = DBT_INTERNAL_DEST.dbt_scd_id '
+                         'when matched and DBT_INTERNAL_DEST.dbt_valid_to is null '
+                         "and DBT_INTERNAL_SOURCE.dbt_change_type in ('update', 'delete') "
+                         'then update set dbt_valid_to = DBT_INTERNAL_SOURCE.dbt_valid_to '
+                         "when not matched and DBT_INTERNAL_SOURCE.dbt_change_type = 'insert' "
+                         'then insert * ;')
+
+    def test_custom_column_names(self):
+        self.config['snapshot_table_column_names'] = {'dbt_scd_id': 'scd_id', 'dbt_valid_to': 'valid_to'}
+
+        sql = _squash(self.merge_sql('my_snapshot', 'my_snapshot__dbt_tmp', []))
+
+        self.assertIn('on DBT_INTERNAL_SOURCE.scd_id = DBT_INTERNAL_DEST.scd_id', sql)
+        self.assertIn('and DBT_INTERNAL_DEST.valid_to is null', sql)
+        self.assertIn('set valid_to = DBT_INTERNAL_SOURCE.valid_to', sql)
+        self.assertNotIn('dbt_scd_id', sql)
+        self.assertNotIn('dbt_valid_to', sql)
+
+    def test_dbt_valid_to_current_matches_current_rows(self):
+        # current rows hold the sentinel instead of null, so the update must match on either
+        self.config['dbt_valid_to_current'] = "to_timestamp('9999-12-31')"
+
+        sql = _squash(self.merge_sql('my_snapshot', 'my_snapshot__dbt_tmp', []))
+
+        self.assertIn("when matched and ( DBT_INTERNAL_DEST.dbt_valid_to = to_timestamp('9999-12-31') "
+                      'or DBT_INTERNAL_DEST.dbt_valid_to is null )', sql)

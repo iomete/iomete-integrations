@@ -48,6 +48,15 @@ class TestSparkAdapter(unittest.TestCase):
             'target': 'test'
         })
 
+    def test_get_adapter_run_info_names_the_iomete_package(self):
+        # dbt calls this after every node; the base version would import dbt.adapters.spark
+        from dbt.adapters.iomete.__version__ import version
+
+        info = SparkAdapter.get_adapter_run_info(mock.Mock(_extra={}))
+
+        self.assertEqual(info.adapter_name, 'iomete')
+        self.assertEqual(info.adapter_version, version)
+
     def test_relation_with_database(self):
         config = self._get_target_http(self.project_cfg)
         adapter = SparkAdapter(config, multiprocessing.get_context("spawn"))
