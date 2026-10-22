@@ -80,7 +80,7 @@ setup(
         "dbt-common>=1.13.0,<2.0",
         "sqlparams>=3.0.0",
         "py-hive-iomete>=2.1.3",
-        "sentry-sdk==2.20.0",
+        "sentry-sdk==2.73.0",
         "iomete-sdk==3.1.1"
     ],
     zip_safe=False,
