@@ -3,7 +3,7 @@ flake8==3.9.2
 mock==2.0.0
 pycodestyle==2.15.0
 pytest==9.1.1
-pytest-cov==2.5.1
+pytest-cov==2.12.1
 pytest-flake8==0.8.1
 pytest-random==0.2
 pytest-timeout==1.2.1
