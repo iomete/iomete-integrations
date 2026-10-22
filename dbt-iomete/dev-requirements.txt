@@ -1,4 +1,4 @@
-markupsafe==2.0.1
+markupsafe==2.1.5
 protobuf==5.29.6
 dbt-core==1.8.10
 dbt-adapters>=1.10.0,<2.0
