@@ -12,6 +12,11 @@ pip install iomete-airflow-plugin
 ```
 Restart you server and check the plugins page on Airflow's admin panel to make sure plugin loaded successfully.
 
+Version 4.0.0 and later require Airflow 3.3+ and Python 3.11 or 3.12. On Airflow 2, install the last compatible release instead:
+```bash
+pip install "iomete-airflow-plugin<4"
+```
+
 ## Usage
 
 Pass your IOMETE connection details directly to `IometeOperator`. A single Airflow instance can trigger jobs against multiple IOMETE clusters by passing different `host`/`domain`/`access_token` values per task.
