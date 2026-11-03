@@ -38,7 +38,8 @@ KEY_TABLE_OWNER = 'Owner'
 KEY_TABLE_STATISTICS = 'Statistics'
 
 # Substrings in the errors Spark raises from `SHOW TABLES/VIEWS` when the schema does not exist.
-SCHEMA_NOT_FOUND_MESSAGES = ("SCHEMA_NOT_FOUND", "NoSuchDatabaseException")
+# Iceberg REST catalogs report it as `NoSuchNamespaceException` instead.
+SCHEMA_NOT_FOUND_MESSAGES = ("SCHEMA_NOT_FOUND", "NoSuchDatabaseException", "NoSuchNamespaceException")
 
 
 def _is_schema_not_found(error_message: Optional[str]) -> bool:
