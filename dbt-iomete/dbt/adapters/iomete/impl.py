@@ -109,9 +109,7 @@ class SparkAdapter(SQLAdapter):
 
     @classmethod
     def get_adapter_run_info(cls, config: RelationConfig) -> AdapterTrackingRelationInfo:
-        # dbt calls this after every node, tracking enabled or not. The base version
-        # imports dbt.adapters.<class name>.__version__, i.e. dbt.adapters.spark,
-        # which does not exist, so every node would fail.
+        # The base version imports dbt.adapters.<class name>, i.e. the missing dbt.adapters.spark.
         return AdapterTrackingRelationInfo(
             adapter_name=cls.type(),
             base_adapter_version=dbt_adapters_version,

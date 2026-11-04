@@ -1,4 +1,4 @@
-## dbt-iomete 1.12.0 (Oct 19, 2026)
+## dbt-iomete 1.12.0 (Nov 5, 2026)
 - Upgraded `dbt-core` from 1.8 to 1.12 (1.12.6). dbt-iomete now requires `dbt-adapters>=1.24.5` and `dbt-common>=1.37.5`.
 - Bumped `protobuf` from 5.29.6 to 6.33.6, the 6.x line that dbt-core 1.12 requires.
 - Dropped support for Python 3.9, which dbt-core 1.12 no longer supports. The adapter now requires Python 3.10+ and supports up to Python 3.12.

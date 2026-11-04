@@ -49,7 +49,6 @@ class TestSparkAdapter(unittest.TestCase):
         })
 
     def test_get_adapter_run_info_names_the_iomete_package(self):
-        # dbt calls this after every node; the base version would import dbt.adapters.spark
         from dbt.adapters.iomete.__version__ import version
 
         info = SparkAdapter.get_adapter_run_info(mock.Mock(_extra={}))
@@ -238,6 +237,32 @@ class TestSparkAdapter(unittest.TestCase):
 
         identifiers = {relation.identifier for relation in relations}
         self.assertEqual(identifiers, {'good_table'})
+
+    def test_list_relations_returns_empty_for_missing_schema(self):
+        # dbt lists schemas it is about to create, so a missing schema must not raise.
+        set_invocation_context({})
+        config = self._get_target_http(self.project_cfg)
+        adapter = SparkAdapter(config, multiprocessing.get_context("spawn"))
+        schema_relation = adapter.Relation.create(schema='analytics')
+
+        for message in (
+            "[SCHEMA_NOT_FOUND] The schema `analytics` cannot be found.",
+            "org.apache.spark.sql.catalyst.analysis.NoSuchDatabaseException: Database 'analytics' not found",
+            "org.apache.iceberg.exceptions.NoSuchNamespaceException: Namespace does not exist: analytics",
+        ):
+            with self.subTest(message=message), \
+                    mock.patch.object(adapter, 'execute_macro', side_effect=DbtRuntimeError(message)):
+                self.assertEqual(adapter.list_relations_without_caching(schema_relation), [])
+
+    def test_list_relations_reraises_other_errors(self):
+        set_invocation_context({})
+        config = self._get_target_http(self.project_cfg)
+        adapter = SparkAdapter(config, multiprocessing.get_context("spawn"))
+        schema_relation = adapter.Relation.create(schema='analytics')
+
+        with mock.patch.object(adapter, 'execute_macro', side_effect=DbtRuntimeError("PERMISSION_DENIED")):
+            with self.assertRaises(DbtRuntimeError):
+                adapter.list_relations_without_caching(schema_relation)
 
     def test_list_relations_types_and_providers(self):
         set_invocation_context({})
