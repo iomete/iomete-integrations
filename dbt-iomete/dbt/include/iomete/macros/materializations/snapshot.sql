@@ -13,15 +13,21 @@
 
 
 {% macro iomete__snapshot_merge_sql(target, source, insert_cols) -%}
+    {%- set columns = config.get("snapshot_table_column_names") or get_snapshot_table_column_names() -%}
 
     merge into {{ target }} as DBT_INTERNAL_DEST
     using {{ source }} as DBT_INTERNAL_SOURCE
-    on DBT_INTERNAL_SOURCE.dbt_scd_id = DBT_INTERNAL_DEST.dbt_scd_id
+    on DBT_INTERNAL_SOURCE.{{ columns.dbt_scd_id }} = DBT_INTERNAL_DEST.{{ columns.dbt_scd_id }}
     when matched
-     and DBT_INTERNAL_DEST.dbt_valid_to is null
+     {% if config.get("dbt_valid_to_current") %}
+       and ( DBT_INTERNAL_DEST.{{ columns.dbt_valid_to }} = {{ config.get('dbt_valid_to_current') }} or
+             DBT_INTERNAL_DEST.{{ columns.dbt_valid_to }} is null )
+     {% else %}
+       and DBT_INTERNAL_DEST.{{ columns.dbt_valid_to }} is null
+     {% endif %}
      and DBT_INTERNAL_SOURCE.dbt_change_type in ('update', 'delete')
         then update
-        set dbt_valid_to = DBT_INTERNAL_SOURCE.dbt_valid_to
+        set {{ columns.dbt_valid_to }} = DBT_INTERNAL_SOURCE.{{ columns.dbt_valid_to }}
 
     when not matched
      and DBT_INTERNAL_SOURCE.dbt_change_type = 'insert'
@@ -68,13 +74,13 @@
 
 
 {% materialization snapshot, adapter='iomete' %}
-  {%- set config = model['config'] -%}
+  {#-- Use the context config, not model['config']: the dict lacks snapshot_table_column_names (dbt 1.9+) --#}
 
   {%- set target_table = model.get('alias', model.get('name')) -%}
 
   {%- set strategy_name = config.get('strategy') -%}
   {%- set unique_key = config.get('unique_key') %}
-  {%- set file_format = config.get('file_format', 'iceberg') -%}
+  {%- set file_format = config.get('file_format') or 'iceberg' -%}
 
   {% set target_relation_exists, target_relation = get_or_create_relation(
           database=model.database,
@@ -112,7 +118,7 @@
   {{ run_hooks(pre_hooks, inside_transaction=True) }}
 
   {% set strategy_macro = strategy_dispatch(strategy_name) %}
-  {% set strategy = strategy_macro(model, "snapshotted_data", "source_data", config, target_relation_exists) %}
+  {% set strategy = strategy_macro(model, "snapshotted_data", "source_data", model['config'], target_relation_exists) %}
 
   {% if not target_relation_exists %}
 
@@ -121,7 +127,9 @@
 
   {% else %}
 
-      {{ adapter.valid_snapshot_target(target_relation) }}
+      {% set columns = config.get("snapshot_table_column_names") or get_snapshot_table_column_names() %}
+
+      {{ adapter.assert_valid_snapshot_target_given_strategy(target_relation, columns, strategy) }}
 
       {% set staging_table = iomete_build_snapshot_staging_table(strategy, sql, target_relation) %}
 
@@ -129,20 +137,23 @@
       {% do adapter.expand_target_column_types(from_relation=staging_table,
                                                to_relation=target_relation) %}
 
+      {% set remove_columns = ['dbt_change_type', 'DBT_CHANGE_TYPE', 'dbt_unique_key', 'DBT_UNIQUE_KEY'] %}
+      {#-- a list unique_key (dbt 1.9+) stages one dbt_unique_key_<n> column per key --#}
+      {% if unique_key | is_list %}
+          {% for key in strategy.unique_key %}
+              {% do remove_columns.append('dbt_unique_key_' + loop.index|string) %}
+              {% do remove_columns.append('DBT_UNIQUE_KEY_' + loop.index|string) %}
+          {% endfor %}
+      {% endif %}
+
       {% set missing_columns = adapter.get_missing_columns(staging_table, target_relation)
-                                   | rejectattr('name', 'equalto', 'dbt_change_type')
-                                   | rejectattr('name', 'equalto', 'DBT_CHANGE_TYPE')
-                                   | rejectattr('name', 'equalto', 'dbt_unique_key')
-                                   | rejectattr('name', 'equalto', 'DBT_UNIQUE_KEY')
+                                   | rejectattr('name', 'in', remove_columns)
                                    | list %}
 
       {% do create_columns(target_relation, missing_columns) %}
 
       {% set source_columns = adapter.get_columns_in_relation(staging_table)
-                                   | rejectattr('name', 'equalto', 'dbt_change_type')
-                                   | rejectattr('name', 'equalto', 'DBT_CHANGE_TYPE')
-                                   | rejectattr('name', 'equalto', 'dbt_unique_key')
-                                   | rejectattr('name', 'equalto', 'DBT_UNIQUE_KEY')
+                                   | rejectattr('name', 'in', remove_columns)
                                    | list %}
 
       {% set quoted_source_columns = [] %}

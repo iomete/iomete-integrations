@@ -21,7 +21,6 @@ from dbt.mp_context import get_mp_context
 from dbt.clients import jinja
 from dbt.config import RuntimeConfig
 from dbt.context import providers
-from dbt.logger import log_manager
 from dbt.events.logging import setup_event_logger
 from dbt_common.events.functions import (
     capture_stdout_logs, stop_capture_stdout_logs
@@ -194,7 +193,6 @@ class DBTIntegrationTest(unittest.TestCase):
 
     def setUp(self):
         # self.dbt_core_install_root = os.path.dirname(dbt.__file__)
-        log_manager.reset_handlers()
         self.initial_dir = INITIAL_ROOT
         os.chdir(self.initial_dir)
         # before we go anywhere, collect the initial path info
@@ -310,6 +308,9 @@ class DBTIntegrationTest(unittest.TestCase):
         kwargs = {
             'profile': None,
             'profiles_dir': self.test_root_dir,
+            # with both dirs set, set_from_args reads the project-level flags,
+            # which dbt 1.9+ manifest parsing expects on the global flags
+            'project_dir': self.test_root_dir,
             'target': None,
             'threads': 1,
         }
@@ -411,7 +412,6 @@ class DBTIntegrationTest(unittest.TestCase):
         return res, stdout
 
     def run_dbt_and_check(self, args=None, profiles_dir=True):
-        log_manager.reset_handlers()
         if args is None:
             args = ["run"]
 
@@ -528,7 +528,9 @@ class DBTIntegrationTest(unittest.TestCase):
                     from dbt.parser.manifest import ManifestLoader
                     from dbt.context.providers import generate_runtime_macro_context
                     from dbt.tracking import do_not_track
+                    from dbt_common.context import set_invocation_context
                     do_not_track()  # set active_user; parse runs outside dbtRunner
+                    set_invocation_context(os.environ)  # dbt 1.10+ parsing reads it
                     manifest = ManifestLoader.get_full_manifest(self.config)
                     self.adapter.set_macro_resolver(manifest)
                     self.adapter.set_macro_context_generator(generate_runtime_macro_context)

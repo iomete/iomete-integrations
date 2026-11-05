@@ -309,3 +309,8 @@
   {% endcall %}
   {% do return(load_result('get_columns_in_relation_raw').table) %}
 {% endmacro %}
+
+{#-- dbt's snapshot staging SQL calls the macro form, e.g. for hard_deletes='new_record' --#}
+{% macro iomete__get_columns_in_relation(relation) -%}
+  {{ return(adapter.get_columns_in_relation(relation)) }}
+{% endmacro %}
